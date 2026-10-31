@@ -1,0 +1,1 @@
+<resources><style name="Theme.ShiYi" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:windowLightStatusBar">true</item><item name="android:windowActionModeOverlay">true</item><item name="android:colorAccent">#DFA9B9</item></style></resources>

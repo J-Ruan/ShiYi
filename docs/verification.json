@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-31",
+  "package": "com.shiyi.memory",
+  "version": "1.0.0",
+  "jvm": [
+    {
+      "suite": "com.shiyi.memory.CryptoTest",
+      "tests": 7,
+      "failures": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "com.shiyi.memory.DatabaseTest",
+      "tests": 10,
+      "failures": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "com.shiyi.memory.LogicTest",
+      "tests": 19,
+      "failures": 0,
+      "skipped": 0
+    },
+    {
+      "suite": "com.shiyi.memory.MigrationTest",
+      "tests": 1,
+      "failures": 0,
+      "skipped": 0
+    }
+  ],
+  "android_grouped": [
+    {
+      "group": "memory_crud",
+      "tests": 1,
+      "passed": 1,
+      "skipped": 0
+    },
+    {
+      "group": "image_viewer",
+      "tests": 1,
+      "passed": 1,
+      "skipped": 0
+    },
+    {
+      "group": "screenshots_rotation_theme",
+      "tests": 1,
+      "passed": 1,
+      "skipped": 0
+    },
+    {
+      "group": "lock_with_open_dialog",
+      "tests": 1,
+      "passed": 1,
+      "skipped": 0
+    },
+    {
+      "group": "platform",
+      "tests": 7,
+      "passed": 7,
+      "skipped": 0
+    }
+  ],
+  "apk": {
+    "path": "app/build/outputs/apk/debug/app-debug.apk",
+    "bytes": 20762095,
+    "sha256": "488177ce2948310dc5b4ca14a471d48fff075aae1ec5b10f1fa8360667e396bb",
+    "signature": "Gradle default debug (v2 verified)"
+  },
+  "hardware": "AOSP API 30 x86_64 software emulator; Honor 90 not tested"
+}
