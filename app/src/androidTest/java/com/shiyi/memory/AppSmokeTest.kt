@@ -11,11 +11,24 @@ import java.io.File
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
+import org.junit.rules.TestRule
 import org.junit.runner.RunWith
+import org.junit.runners.model.Statement
 
 @RunWith(AndroidJUnit4::class)
 class AppSmokeTest {
-    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+    val compose = createAndroidComposeRule<MainActivity>()
+    private val emptyDeviceRule = TestRule { base, _ ->
+        object : Statement() {
+            override fun evaluate() {
+                // Validate before launching the Activity, not concurrently with its first frame.
+                TestDeviceGuard.requireEmptyInstallation()
+                base.evaluate()
+            }
+        }
+    }
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(emptyDeviceRule).around(compose)
 
     @Test
     fun fourTabsAndCreateReadUpdateDeleteMemory() {

@@ -21,10 +21,15 @@ class PlatformTest {
     private lateinit var context: Context
     private lateinit var db: MemoryDatabase
     private lateinit var repo: MemoryRepository
+    private var originalSettings: Settings? = null
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        TestDeviceGuard.requireEmptyInstallation()
+        originalSettings = runBlocking {
+            (context.applicationContext as MemoryApplication).settings.read()
+        }
         context.deleteDatabase("platform-test.db")
         db = MemoryDatabase.open(context, "platform-test.db")
         repo = MemoryRepository(context, db)
@@ -32,8 +37,15 @@ class PlatformTest {
 
     @After
     fun close() {
-        db.close()
-        context.deleteDatabase("platform-test.db")
+        if (::db.isInitialized) {
+            db.close()
+            context.deleteDatabase("platform-test.db")
+        }
+        originalSettings?.let { saved ->
+            runBlocking {
+                (context.applicationContext as MemoryApplication).settings.update { saved }
+            }
+        }
     }
 
     private fun fixture(): File {
@@ -272,5 +284,23 @@ class PlatformTest {
         assertFalse(file.readBytes().toString(Charsets.UTF_8).contains(secret))
         val wal = File(file.path + "-wal")
         if (wal.exists()) assertEquals(0L, wal.length())
+    }
+
+    @Test
+    fun instrumentationRefusesExistingPersonalRecords(): Unit = runBlocking {
+        val app = context.applicationContext as MemoryApplication
+        val record = Memory(title = "用于验证测试保护的合成记录", date = "2026-10-31")
+        try {
+            app.repository.dao.put(record)
+            assertThrows(IllegalArgumentException::class.java) {
+                TestDeviceGuard.requireEmptyInstallation()
+            }
+            assertEquals(
+                record.title,
+                app.repository.snapshot().memories.single { it.id == record.id }.title,
+            )
+        } finally {
+            app.repository.delete("memory", record.id)
+        }
     }
 }

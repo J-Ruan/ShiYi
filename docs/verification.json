@@ -28,7 +28,14 @@
       "skipped": 0
     }
   ],
-  "android_grouped": [
+  "apk": {
+    "path": "app/build/outputs/apk/debug/app-debug.apk",
+    "bytes": 20762095,
+    "sha256": "488177ce2948310dc5b4ca14a471d48fff075aae1ec5b10f1fa8360667e396bb",
+    "signature": "Gradle default debug (v2 verified)"
+  },
+  "hardware": "AOSP API 30 x86_64 software emulator; Honor 90 not tested",
+  "android_ui_history": [
     {
       "group": "memory_crud",
       "tests": 1,
@@ -52,19 +59,28 @@
       "tests": 1,
       "passed": 1,
       "skipped": 0
-    },
+    }
+  ],
+  "android_current": [
     {
-      "group": "platform",
-      "tests": 7,
-      "passed": 7,
+      "group": "platform_with_empty_installation_guard",
+      "tests": 8,
+      "passed": 8,
       "skipped": 0
     }
   ],
-  "apk": {
-    "path": "app/build/outputs/apk/debug/app-debug.apk",
-    "bytes": 20762095,
-    "sha256": "488177ce2948310dc5b4ca14a471d48fff075aae1ec5b10f1fa8360667e396bb",
-    "signature": "Gradle default debug (v2 verified)"
+  "latest_ui_repeat": {
+    "group": "fourTabsAndCreateReadUpdateDeleteMemory",
+    "status": "instrumentation_aborted_before_completion",
+    "reason": "keyDispatchingTimedOut: 5005ms FocusEvent timeout on software emulator without KVM",
+    "counted_as_pass": false
   },
-  "hardware": "AOSP API 30 x86_64 software emulator; Honor 90 not tested"
+  "manual_startup": {
+    "status": "Status: ok after Android System UI ANR recovery",
+    "homepage_markers_verified": [
+      "拾忆",
+      "最近回忆",
+      "首页"
+    ]
+  }
 }

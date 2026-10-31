@@ -69,7 +69,9 @@ Gradle Wrapper 固定为 8.13，并验证发行文件的 SHA-256。Maven 依赖�
 
 产物：`app/build/outputs/apk/debug/app-debug.apk`。
 
-连接设备 / 启动模拟器后：
+安装与启动可以使用日常设备。**设备测试仅允许在空数据模拟器或专用测试设备执行**，检测到已有资料、原图或个人设置时会拒绝运行，避免清空用例触碰日常数据。
+
+连接测试设备 / 启动模拟器后：
 
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
