@@ -50,7 +50,7 @@ app/src/main/java/com/shiyi/memory/
 
 ## 安装 APK
 
-从本仓库的 GitHub Releases 获取附件（仅在发布成功后才会出现），或下载 GitHub Actions 的 `ShiYi-debug-APK-and-reports` 产物。也可按下节自行构建。
+直接下载：[拾忆 1.0.0 APK（debug 签名）](https://github.com/J-Ruan/ShiYi/raw/refs/heads/main/downloads/ShiYi-1.0.0-debug.apk)。安装包及 [SHA-256 校验文件](downloads/SHA256SUMS) 已放在仓库的 `downloads/` 目录。当前使用仓库文件分发，尚未建立 GitHub Release 附件。也可按下节自行构建。
 
 允许系统安装所选文件来源的应用，然后打开 APK。包名 `com.shiyi.memory`，最低 API 26。发布的 `app-debug.apk` 使用 **Gradle 默认 debug 签名**，不是正式发行签名。不要卸载后再尝试更新以解决签名冲突，卸载会丢失本地数据；请先导出加密备份。没有在仓库中保存签名私钥。
 
