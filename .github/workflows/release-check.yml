@@ -24,3 +24,6 @@ jobs:
           arch: x86_64
           disable-animations: true
           script: ./gradlew clean testDebugUnitTest lint connectedDebugAndroidTest assembleRelease
+      - name: Report synthetic test failures
+        if: failure()
+        run: python3 scripts/report-test-failures.py

@@ -3,6 +3,9 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -19,6 +22,9 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew --no-daemon clean testDebugUnitTest lint assembleDebug assembleRelease assembleDebugAndroidTest
+      - name: Report synthetic test failures
+        if: failure()
+        run: python3 scripts/report-test-failures.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -47,6 +53,9 @@ jobs:
           profile: pixel_2
           disable-animations: true
           script: ./gradlew connectedDebugAndroidTest
+      - name: Report synthetic test failures
+        if: failure()
+        run: python3 scripts/report-test-failures.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:

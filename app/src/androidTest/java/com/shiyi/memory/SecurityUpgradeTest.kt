@@ -25,23 +25,25 @@ class SecurityUpgradeTest {
         TestDeviceGuard.requireEmptyInstallation()
         val base = InstrumentationRegistry.getInstrumentation().targetContext
         root = File(base.cacheDir, "isolated-security-${newId()}").apply { mkdirs() }
-        context =
-            object : ContextWrapper(base) {
-                override fun getApplicationContext(): Context = this
-
-                override fun getFilesDir() = File(root, "files").apply { mkdirs() }
-
-                override fun getNoBackupFilesDir() = File(root, "no-backup").apply { mkdirs() }
-
-                override fun getCacheDir() = File(root, "cache").apply { mkdirs() }
-
-                override fun getDatabasePath(name: String) =
-                    File(root, "databases/$name").apply { parentFile!!.mkdirs() }
-
-                override fun deleteDatabase(name: String) =
-                    android.database.sqlite.SQLiteDatabase.deleteDatabase(getDatabasePath(name))
-            }
+        context = isolated(base, root)
     }
+
+    private fun isolated(base: Context, folder: File): Context =
+        object : ContextWrapper(base) {
+            override fun getApplicationContext(): Context = this
+
+            override fun getFilesDir() = File(folder, "files").apply { mkdirs() }
+
+            override fun getNoBackupFilesDir() = File(folder, "no-backup").apply { mkdirs() }
+
+            override fun getCacheDir() = File(folder, "cache").apply { mkdirs() }
+
+            override fun getDatabasePath(name: String) =
+                File(folder, "databases/$name").apply { parentFile!!.mkdirs() }
+
+            override fun deleteDatabase(name: String) =
+                android.database.sqlite.SQLiteDatabase.deleteDatabase(getDatabasePath(name))
+        }
 
     @After
     fun close() {
@@ -218,6 +220,112 @@ class SecurityUpgradeTest {
             repo.file(path).writeBytes(data)
             assertThrows(Exception::class.java) { repo.images.temporary(path) }
             assertTrue(File(context.cacheDir, "sensitive").listFiles().orEmpty().isEmpty())
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun oldBackupRestoresWithNewDeviceKeysAndKeepsLocalSecurity(): Unit = runBlocking {
+        val sourceDb = MemoryDatabase.open(context, "source.db")
+        val destination = isolated(context, File(root, "new-device"))
+        val destinationDb = MemoryDatabase.open(destination, "destination.db")
+        val base = InstrumentationRegistry.getInstrumentation().targetContext
+        val prefs = SettingsRepository(base)
+        val originalSettings = prefs.read()
+        try {
+            val source = MemoryRepository(context, sourceDb)
+            val original = fixture()
+            val path = source.importImage(Uri.fromFile(original))
+            source.saveMemory(
+                Memory(id = "old-backup", title = "旧版备份", date = "2020-01-01"),
+                listOf(path),
+                listOf("标签"),
+                emptySet(),
+                emptySet(),
+            )
+            val manifest =
+                com.shiyi.memory.platform.BackupManifest(
+                    format = 1,
+                    data = source.snapshot(),
+                    settings = Settings(theme = "dark", pinHash = "old-device"),
+                    checksums = mapOf(path to Crypto.sha256(original)),
+                )
+            val encoded =
+                kotlinx.serialization.json.Json.encodeToString(
+                    com.shiyi.memory.platform.BackupManifest.serializer(),
+                    manifest,
+                )
+            val obj = Json.parseToJsonElement(encoded).jsonObject.toMutableMap()
+            val data = obj.getValue("data").jsonObject.toMutableMap()
+            data["memories"] =
+                JsonArray(
+                    data.getValue("memories").jsonArray.map {
+                        JsonObject(it.jsonObject.filterKeys { key -> key != "deletedAt" })
+                    }
+                )
+            obj["data"] = JsonObject(data)
+            val zip = File(context.cacheDir, "legacy-backup.zip")
+            java.util.zip.ZipOutputStream(zip.outputStream()).use { out ->
+                out.putNextEntry(java.util.zip.ZipEntry("manifest.json"))
+                out.write(JsonObject(obj).toString().toByteArray())
+                out.closeEntry()
+                out.putNextEntry(java.util.zip.ZipEntry("media/$path"))
+                source.images.copyOriginal(path, out)
+                out.closeEntry()
+            }
+            val backup = File(context.cacheDir, "legacy.shiyi")
+            backup.outputStream().use { Crypto.encrypt(zip, it, "test-password".toCharArray()) }
+            val target = MemoryRepository(destination, destinationDb)
+            val local =
+                Settings(
+                    pinHash = "this-device",
+                    biometric = true,
+                    notifications = true,
+                    lastBackup = 123,
+                    backupLocation = "this-location",
+                )
+            prefs.update { local }
+            val service = com.shiyi.memory.platform.BackupService(destination, target, prefs)
+            service.restore(service.inspect(Uri.fromFile(backup), "test-password".toCharArray()))
+            assertEquals(local.copy(theme = "dark"), prefs.read())
+            assertEquals("旧版备份", target.snapshot().memories.single().title)
+            assertEquals(
+                Crypto.sha256(original),
+                target.images.withOriginal(target.snapshot().media.single().path) {
+                    Crypto.sha256(it)
+                },
+            )
+            val first = LocalKeys.media(context)
+            val second = LocalKeys.media(destination)
+            try {
+                assertFalse(first.contentEquals(second))
+            } finally {
+                first.fill(0)
+                second.fill(0)
+            }
+        } finally {
+            sourceDb.close()
+            destinationDb.close()
+            prefs.update { originalSettings }
+        }
+    }
+
+    @Test
+    fun interruptedShareRecoversCopiedImagesWithoutExternalUris(): Unit = runBlocking {
+        val db = MemoryDatabase.open(context, "share-recovery.db")
+        try {
+            val repo = MemoryRepository(context, db)
+            val image = repo.importImage(Uri.fromFile(fixture()))
+            val folder = File(context.noBackupFilesDir, "share-drafts").apply { mkdirs() }
+            File(folder, "interrupted.importing").writeText("[\"$image\"]")
+            val service = com.shiyi.memory.platform.ShareImport(context, repo)
+            assertTrue(service.recoverInterrupted())
+            assertEquals("interrupted", service.pending())
+            assertEquals(listOf(image), service.paths("interrupted"))
+            assertTrue(repo.storageReport().unused.isEmpty())
+            service.finish("interrupted")
+            assertNull(service.pending())
         } finally {
             db.close()
         }

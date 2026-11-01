@@ -90,13 +90,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         com.shiyi.memory.domain.validateSnapshot(it)
                         if (loading.value) LegacyMigration.finish(app)
                         data.value = it
-                        loading.value = false
                         startupError.value = null
                         if (!recoveredDraft) {
                             recoveredDraft = true
-                            sharedDraft.value = ShareImport(app, repo).pending()
+                            val imports = ShareImport(app, repo)
+                            if (imports.recoverInterrupted()) {
+                                error.value = "上次图片导入被中断，已保留复制完成的图片。请重新分享其余图片。"
+                            }
+                            sharedDraft.value = imports.pending()
                             repo.emptyTrash(true)
                         }
+                        loading.value = false
                     }
                 } catch (e: Exception) {
                     if (e is CancellationException) throw e
@@ -165,6 +169,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             return
         val uris = com.shiyi.memory.platform.ShareImport.uris(intent)
         action("分享图片已导入") {
+            val state =
+                combine(loading, startupError) { waiting, failure -> waiting to failure }
+                    .first { !it.first || it.second != null }
+            require(state.second == null) { "请先解决数据读取问题，再重新分享图片" }
             val draft = com.shiyi.memory.platform.ShareImport(app, repo).prepare(uris)
             sharedDraft.value = draft
         }

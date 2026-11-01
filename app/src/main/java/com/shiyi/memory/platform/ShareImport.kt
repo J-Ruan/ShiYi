@@ -17,12 +17,9 @@ class ShareImport(private val context: Context, private val repo: MemoryReposito
         require(uris.isNotEmpty() && uris.size <= 100) { "请选择 1–100 张图片" }
         val id = newId()
         val copied = mutableListOf<String>()
-        try {
-            uris.distinct().forEach { uri ->
-                require(uri.scheme == "content") { "分享图片地址无效" }
-                copied += repo.importImage(uri)
-            }
-            val atomic = AtomicFile(File(folder, id))
+        val journal = File(folder, "$id.importing")
+        fun checkpoint() {
+            val atomic = AtomicFile(journal)
             val out = atomic.startWrite()
             try {
                 out.write(Json.encodeToString(copied).toByteArray())
@@ -31,18 +28,55 @@ class ShareImport(private val context: Context, private val repo: MemoryReposito
                 atomic.failWrite(out)
                 throw e
             }
+        }
+        try {
+            checkpoint()
+            uris.distinct().forEach { uri ->
+                require(uri.scheme == "content") { "分享图片地址无效" }
+                copied += repo.importImage(uri)
+                checkpoint()
+            }
+            check(journal.renameTo(File(folder, id)))
             return id
         } catch (e: Exception) {
             copied.forEach { repo.file(it).delete() }
+            AtomicFile(journal).delete()
             throw e
         }
+    }
+
+    /**
+     * Interrupted import preserves completed originals; unavailable temporary grants need
+     * re-sharing.
+     */
+    fun recoverInterrupted(): Boolean {
+        val journals =
+            folder
+                .listFiles()
+                .orEmpty()
+                .filter { it.name.endsWith(".importing") || it.name.endsWith(".importing.bak") }
+                .map { it.name.removeSuffix(".bak") }
+                .distinct()
+        journals.forEach { name ->
+            val file = File(folder, name)
+            val paths =
+                Json.decodeFromString<List<String>>(
+                    AtomicFile(file).openRead().use { it.bufferedReader().readText() }
+                )
+            if (paths.isEmpty()) AtomicFile(file).delete()
+            else {
+                check(paths.all { repo.file(it).isFile })
+                check(file.renameTo(File(folder, name.removeSuffix(".importing"))))
+            }
+        }
+        return journals.isNotEmpty()
     }
 
     fun pending(): String? =
         folder
             .listFiles()
             .orEmpty()
-            .filter { it.isFile && !it.name.endsWith(".bak") }
+            .filter { it.isFile && it.name.matches(Regex("[A-Za-z0-9-]+")) }
             .minByOrNull { it.lastModified() }
             ?.name
 

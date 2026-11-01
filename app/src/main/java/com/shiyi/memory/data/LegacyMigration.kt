@@ -136,10 +136,12 @@ object LegacyMigration {
     fun finish(context: Context) {
         // Durable cleanup intent survives death between deleting the database and old media.
         val old = context.getDatabasePath("memory.db")
-        val marker = android.util.AtomicFile(File(context.noBackupFilesDir, "legacy-cleanup-v1"))
-        if (!old.exists() && !marker.exists()) return
+        val markerFile = File(context.noBackupFilesDir, "legacy-cleanup-v1")
+        val marker = android.util.AtomicFile(markerFile)
+        val marked = markerFile.exists() || File(markerFile.path + ".bak").exists()
+        if (!old.exists() && !marked) return
         check(context.getDatabasePath("memory-secure.db").isFile)
-        if (!marker.exists()) {
+        if (!marked) {
             val out = marker.startWrite()
             try {
                 out.write(byteArrayOf(1))
