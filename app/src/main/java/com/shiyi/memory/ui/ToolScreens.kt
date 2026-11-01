@@ -341,7 +341,7 @@ fun SettingsScreen(vm: AppViewModel, back: () -> Unit) {
             }
             Section("应用锁")
             Text(
-                "${if (s.pinHash.isBlank()) "未设置" else "已开启"} · 后台锁定",
+                if (s.pinHash.isBlank()) "未设置" else "已开启 · 后台锁定",
                 style = MaterialTheme.typography.bodySmall,
             )
             OutlinedButton(
@@ -400,10 +400,7 @@ fun SettingsScreen(vm: AppViewModel, back: () -> Unit) {
                         Reminders.schedule(vm.app)
                     }
             }
-            Text(
-                "每天约 9:00 检查当天到期的提醒；无需精确闹钟权限。系统重启或日期、时区变化后重新调度。省电与后台限制可能延迟通知。内容只显示通用提示。",
-                style = MaterialTheme.typography.bodySmall,
-            )
+            Text("每日约 9:00 提醒，可能受系统省电影响。", style = MaterialTheme.typography.bodySmall)
             OutlinedButton(
                 onClick = {
                     context.startActivity(
@@ -429,7 +426,7 @@ fun SettingsScreen(vm: AppViewModel, back: () -> Unit) {
             }
             Section("隐私说明")
             Text(
-                "拾忆不申请 INTERNET 权限，不访问服务器；没有账号、云同步、广告、分析 SDK、AI 或 OCR。导入图片复制到私有目录，原相册内容不会被修改或删除。Android 自动云备份和设备迁移已关闭。\n\n加密备份使用 PBKDF2-HMAC-SHA256（310,000 次）与 AES-256-GCM，独立随机盐和 IV。请使用强密码并定期备份。设备私有沙盒不能防止已获取系统权限的攻击。卸载应用将删除本地数据，卸载前请导出备份。",
+                "完全离线，无账号、云同步、广告、AI 或 OCR。图片只复制到本机，原相册不变。系统自动备份已关闭。\n\n数据库和图片在本地加密。导出备份使用独立密码，密码无法找回。卸载应用前请另存并验证备份。",
                 style = MaterialTheme.typography.bodySmall,
             )
             Spacer(Modifier.height(30.dp))
@@ -608,7 +605,7 @@ fun CategoriesScreen(vm: AppViewModel, back: () -> Unit) {
     var delete by remember { mutableStateOf<Category?>(null) }
     LazyColumn(contentPadding = PaddingValues(20.dp)) {
         item {
-            Header("分类管理", "删除分类不会删除使用该名称的记录", back)
+            Header("分类管理", "删除分类不会删除使用该名称的记录", back, inset = false)
             Choices("用途", scope, listOf("回忆", "档案")) { scope = it }
             Field("自定义分类名称", name, { name = it })
             Button(

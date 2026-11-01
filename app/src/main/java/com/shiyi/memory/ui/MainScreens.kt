@@ -90,70 +90,64 @@ fun HomeScreen(vm: AppViewModel, go: (String) -> Unit) {
                     }
                 }
         }
-        item {
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                Section("今日回忆", "往年今天，曾经发生的美好")
-                val records = onThisDay(s, today())
-                if (records.isEmpty()) Empty("今天，还没有旧日回声", "新的一天，也值得被记住。")
-                else
+        if (onThisDay(s, today()).isNotEmpty())
+            item {
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    Section("今日回忆")
+                    val records = onThisDay(s, today())
                     records.forEach { m ->
                         RecordCard(m.title, m.date, { go("detail/memory/${m.id}") })
                     }
+                }
             }
-        }
-        item {
-            Column(Modifier.padding(horizontal = 20.dp)) {
-                Section(
-                    "偶然想起",
-                    action = {
-                        TextButton(
-                            onClick = {
-                                randomId =
-                                    s.activeMemories
-                                        .filter { it.id != randomId }
-                                        .ifEmpty { s.activeMemories }
-                                        .randomOrNull()
-                                        ?.id
-                                        .orEmpty()
-                            },
-                            enabled = s.activeMemories.isNotEmpty(),
-                        ) {
-                            Text("随机一段")
-                        }
-                    },
-                )
-                val m = s.activeMemories.find { it.id == randomId }
-                if (m != null) MemoryCard(m, s, vm, { go("detail/memory/${m.id}") })
-                else
-                    Text(
-                        if (s.activeMemories.isEmpty()) "先保存一段回忆，让时光有迹可循。" else "轻触「随机一段」，重逢一段旧时光。",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (s.activeMemories.isNotEmpty())
+            item {
+                Column(Modifier.padding(horizontal = 20.dp)) {
+                    Section(
+                        "偶然想起",
+                        action = {
+                            TextButton(
+                                onClick = {
+                                    randomId =
+                                        s.activeMemories
+                                            .filter { it.id != randomId }
+                                            .ifEmpty { s.activeMemories }
+                                            .randomOrNull()
+                                            ?.id
+                                            .orEmpty()
+                                },
+                                enabled = s.activeMemories.isNotEmpty(),
+                            ) {
+                                Text("随机一段")
+                            }
+                        },
                     )
+                    val m = s.activeMemories.find { it.id == randomId }
+                    if (m != null) MemoryCard(m, s, vm, { go("detail/memory/${m.id}") })
+                }
             }
-        }
         item {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Section("TA 的最近动态")
-                if (s.entries.isEmpty()) Empty("慢慢了解，慢慢记录", "手动记下 TA 的喜好与相处细节。")
-                else
+                if (s.entries.isNotEmpty()) {
+                    Section("TA 的最近记录")
                     s.entries
                         .sortedByDescending { it.createdAt }
                         .take(3)
                         .forEach {
                             RecordCard(it.title, it.category, { go("detail/entry/${it.id}") })
                         }
-                Section("即将到来的纪念日")
+                }
                 val events =
                     s.anniversaries
                         .mapNotNull { a -> nextDate(a)?.let { a to it } }
                         .filter { it.second <= today().plusDays(90) }
                         .sortedBy { it.second }
-                if (events.isEmpty())
-                    Text("未来 90 天暂无纪念日", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                else
+                if (events.isNotEmpty()) {
+                    Section("即将到来的纪念日")
                     events.take(5).forEach { (a, d) ->
                         RecordCard(a.title, d.toString(), { go("detail/anniversary/${a.id}") })
                     }
+                }
                 Section("快捷记录")
                 listOf(
                         "添加回忆" to "edit/memory/new",
@@ -325,6 +319,7 @@ fun ProfileScreen(vm: AppViewModel, go: (String) -> Unit) {
     val s by vm.data.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("全部") }
+    var filterExpanded by rememberSaveable { mutableStateOf(false) }
     var importance by rememberSaveable { mutableStateOf("全部") }
     val p = s.partner.firstOrNull() ?: PartnerProfile()
     LazyColumn(contentPadding = PaddingValues(20.dp, 0.dp, 20.dp, 90.dp)) {
@@ -332,6 +327,7 @@ fun ProfileScreen(vm: AppViewModel, go: (String) -> Unit) {
             Header(
                 "TA 的档案",
                 "关于 TA，那些值得记住的小事",
+                inset = false,
                 actions = {
                     IconButton(onClick = { go("edit/partner/1") }) {
                         Icon(Icons.Outlined.Edit, "编辑恋人档案")
@@ -350,11 +346,6 @@ fun ProfileScreen(vm: AppViewModel, go: (String) -> Unit) {
                     if (p.bio.isNotBlank()) Text(p.bio)
                     if (p.birthday.isNotBlank())
                         Text("生日 ${p.birthday}", style = MaterialTheme.typography.bodySmall)
-                    if (s.partner.isNotEmpty())
-                        Text(
-                            "建立于 ${Instant.ofEpochMilli(p.createdAt).atZone(ZoneId.systemDefault()).toLocalDate()} · ${s.entries.size} 条记录",
-                            style = MaterialTheme.typography.labelSmall,
-                        )
                 }
             }
         }
@@ -367,15 +358,20 @@ fun ProfileScreen(vm: AppViewModel, go: (String) -> Unit) {
             )
             RecordCard("纪念日", "", { go("anniversaries") })
             Field("搜索档案与标签", query, { query = it })
-            Choices(
-                "分类",
-                category,
-                listOf("全部") +
-                    profileCategories +
-                    s.categories.filter { it.scope == "档案" }.map { it.name },
-                { category = it },
-            )
-            Choices("重要程度", importance, listOf("全部") + importanceNames, { importance = it })
+            TextButton(onClick = { filterExpanded = !filterExpanded }) {
+                Text(if (filterExpanded) "收起筛选" else "筛选")
+            }
+            if (filterExpanded) {
+                Choices(
+                    "分类",
+                    category,
+                    listOf("全部") +
+                        profileCategories +
+                        s.categories.filter { it.scope == "档案" }.map { it.name },
+                    { category = it },
+                )
+                Choices("重要程度", importance, listOf("全部") + importanceNames, { importance = it })
+            }
             Section(
                 "细节收藏",
                 action = { TextButton(onClick = { go("edit/entry/new") }) { Text("新增") } },
@@ -403,7 +399,7 @@ fun MeScreen(vm: AppViewModel, go: (String) -> Unit) {
     val s by vm.data.collectAsStateWithLifecycle()
     LazyColumn(contentPadding = PaddingValues(20.dp, 0.dp, 20.dp, 90.dp)) {
         item {
-            Header("我的", "自己的收藏馆，自己的节奏")
+            Header("我的", inset = false)
             Section(
                 "收藏了 ${s.activeMemories.size} 段时光",
                 "${s.media.size} 张原图 · ${s.entries.size} 条 TA 的细节",
@@ -424,7 +420,7 @@ fun MeScreen(vm: AppViewModel, go: (String) -> Unit) {
             RecordCard(title, "", { go(path) })
         }
         item {
-            Section("拾忆 · Memory", "1.1.0")
+            Section("拾忆 ${com.shiyi.memory.BuildConfig.VERSION_NAME}")
             Text(
                 "完全离线 · 本地加密",
                 style = MaterialTheme.typography.bodySmall,

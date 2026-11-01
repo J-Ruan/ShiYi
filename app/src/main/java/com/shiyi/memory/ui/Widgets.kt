@@ -27,14 +27,15 @@ fun Header(
     title: String,
     subtitle: String = "",
     back: (() -> Unit)? = null,
+    inset: Boolean = true,
     actions: @Composable RowScope.() -> Unit = {},
 ) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(horizontal = if (inset) 12.dp else 0.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (back != null) IconButton(onClick = back) { Icon(Icons.Outlined.ArrowBack, "返回") }
-        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+        Column(Modifier.weight(1f).padding(start = if (inset) 8.dp else 0.dp)) {
             Text(
                 title,
                 style = MaterialTheme.typography.headlineSmall,

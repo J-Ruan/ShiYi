@@ -22,6 +22,7 @@ fun TrashScreen(vm: AppViewModel, back: () -> Unit) {
             Header(
                 "回收站",
                 back = back,
+                inset = false,
                 actions = {
                     TextButton(onClick = { permanent = "all" }, enabled = records.isNotEmpty()) {
                         Text("清空")
@@ -80,7 +81,7 @@ fun StorageScreen(vm: AppViewModel, back: () -> Unit) {
     }
     fun size(bytes: Long) = "%.2f MB".format(bytes / 1048576.0)
     LazyColumn(contentPadding = PaddingValues(Space.page)) {
-        item { Header("存储空间", back = back) }
+        item { Header("存储空间", back = back, inset = false) }
         val r = report
         if (r == null) item { CircularProgressIndicator() }
         else {

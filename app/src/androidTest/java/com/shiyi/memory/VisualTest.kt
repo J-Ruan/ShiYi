@@ -92,7 +92,7 @@ class VisualTest {
         try {
             compose.setContent {
                 ShiYiTheme(theme) {
-                    Surface(Modifier.fillMaxSize()) {
+                    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                         key(screen) {
                             when (screen) {
                                 "home",

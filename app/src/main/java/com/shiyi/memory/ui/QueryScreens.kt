@@ -25,6 +25,7 @@ fun WishesScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
                 "心愿清单",
                 "让期待，有个安放的地方",
                 back,
+                inset = false,
                 actions = {
                     IconButton(onClick = { go("edit/wish/new") }) {
                         Icon(Icons.Outlined.Add, "添加心愿")
@@ -50,17 +51,14 @@ fun AnniversariesScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit
                 "纪念日",
                 "重要的日子，都记在这里",
                 back,
+                inset = false,
                 actions = {
                     IconButton(onClick = { go("edit/anniversary/new") }) {
                         Icon(Icons.Outlined.Add, "添加纪念日")
                     }
                 },
             )
-            Text(
-                "提醒需在设置中主动开启，使用系统非精确闹钟。荣耀设备可在系统电池设置中允许拾忆后台运行，提醒时间可能受省电影响。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            TextButton(onClick = { go("settings") }) { Text("管理提醒") }
         }
         if (s.anniversaries.isEmpty()) item { Empty("值得纪念的第一天", "生日、相识，或任何属于你们的特别日子。") }
         items(s.anniversaries.sortedBy { nextDate(it) ?: LocalDate.MAX }, key = { it.id }) { a ->
@@ -82,6 +80,7 @@ fun CollectionsScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) 
                 "回忆合集",
                 "把相关的时光，收进同一本册子",
                 back,
+                inset = false,
                 actions = {
                     IconButton(onClick = { go("edit/collection/new") }) {
                         Icon(Icons.Outlined.Add, "创建合集")
@@ -104,6 +103,7 @@ fun CollectionsScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) 
 @Composable
 fun SearchScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
     val s by vm.data.collectAsStateWithLifecycle()
+    var advanced by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var kind by rememberSaveable { mutableStateOf("全部") }
     var category by rememberSaveable { mutableStateOf("") }
@@ -117,12 +117,15 @@ fun SearchScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
         remember(s, query, kind, category, from, to) { search(s, query, kind, category, from, to) }
     LazyColumn(contentPadding = PaddingValues(20.dp)) {
         item {
-            Header("搜索收藏", "只搜索手动录入的文字，不读取图片内容", back)
+            Header("搜索收藏", "只搜索手动录入的文字，不读取图片内容", back, inset = false)
             Field("搜索中文关键词", query, { query = it })
             Chips(listOf("全部", "回忆", "档案", "心愿"), kind) { kind = it }
-            Field("分类包含（可选）", category, { category = it })
-            DateField("开始日期", from, { from = it }, true)
-            DateField("结束日期", to, { to = it }, true)
+            TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "收起筛选" else "筛选") }
+            if (advanced) {
+                Field("分类包含", category, { category = it })
+                DateField("开始日期", from, { from = it }, true)
+                DateField("结束日期", to, { to = it }, true)
+            }
             if (!valid) Text("请填写有效日期范围", color = MaterialTheme.colorScheme.error)
             else Section("${records.size} 条结果")
         }
@@ -159,7 +162,7 @@ fun CalendarScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
     }
     LazyColumn(contentPadding = PaddingValues(20.dp)) {
         item {
-            Header("记忆日历", "● 回忆    ◇ 纪念日", back)
+            Header("记忆日历", "● 回忆    ◇ 纪念日", back, inset = false)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { monthText = month.minusYears(1).toString() }) {
                     Text("«", style = MaterialTheme.typography.headlineSmall)
@@ -268,7 +271,7 @@ fun StatsScreen(vm: AppViewModel, back: () -> Unit) {
     val stats = statistics(s, year.takeIf { period != "全部" }, month.takeIf { period == "月度" })
     LazyColumn(contentPadding = PaddingValues(20.dp)) {
         item {
-            Header("时光足迹", "每一条记录，都曾认真生活", back)
+            Header("时光足迹", "每一条记录，都曾认真生活", back, inset = false)
             Chips(listOf("全部", "月度", "年度"), period) { period = it }
             if (period != "全部") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
