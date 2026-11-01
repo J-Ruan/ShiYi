@@ -3,6 +3,8 @@ set -euo pipefail
 # Tests themselves refuse an installation containing personal records or settings.
 status=0
 ./gradlew connectedDebugAndroidTest || status=$?
+# UTP may already have copied outputs and uninstalled the test application.
+if python3 scripts/collect-screenshots.py; then exit "$status"; fi
 target=app/build/outputs/connected_android_test_additional_output/synthetic/screenshots-110
 mkdir -p "$target"
 archive=$(mktemp)

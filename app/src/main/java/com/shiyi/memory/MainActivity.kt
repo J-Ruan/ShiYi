@@ -15,7 +15,11 @@ class MainActivity : FragmentActivity() {
                 context: android.content.Context,
                 intent: android.content.Intent,
             ) {
-                model.lock()
+                if (
+                    intent.action == android.content.Intent.ACTION_SCREEN_OFF ||
+                        intent.getStringExtra("reason") in listOf("homekey", "recentapps", "assist")
+                )
+                    model.lock()
             }
         }
     private val model: AppViewModel by viewModels()
@@ -25,7 +29,9 @@ class MainActivity : FragmentActivity() {
         androidx.core.content.ContextCompat.registerReceiver(
             this,
             screenReceiver,
-            android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF),
+            android.content.IntentFilter(android.content.Intent.ACTION_SCREEN_OFF).apply {
+                addAction(android.content.Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
+            },
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
         )
         enableEdgeToEdge()

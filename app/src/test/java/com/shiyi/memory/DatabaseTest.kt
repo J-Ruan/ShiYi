@@ -292,6 +292,8 @@ class DatabaseTest {
     @Test
     fun explicitCleanupRechecksReferences(): Unit = runBlocking {
         repo.images.write("orphan.img", byteArrayOf(3, 2, 1).inputStream())
+        assertEquals(1, repo.storageReport().unreferencedCount)
+        assertTrue(repo.storageReport().unused.isEmpty())
         repo.file("orphan.img").setLastModified(System.currentTimeMillis() - 2 * 86400000)
         val review = repo.storageReport().unused
         assertEquals(1, review.size)

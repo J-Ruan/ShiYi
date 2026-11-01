@@ -317,6 +317,7 @@ class MemoryRepository(
                     bytes(s.partner.map { it.avatar }.toSet()),
                     bytes(s.wishes.map { it.image }.toSet()),
                     candidates.map { StorageFile(it.name, it.length(), it.lastModified()) },
+                    all.count { it.name !in used },
                 )
             }
         }
@@ -370,4 +371,5 @@ data class StorageReport(
     val profile: Long,
     val wishes: Long,
     val unused: List<StorageFile>,
+    val unreferencedCount: Int = unused.size,
 )

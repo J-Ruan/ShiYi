@@ -27,6 +27,9 @@ import androidx.navigation.compose.*
 
 @Composable
 fun MemoryApp(vm: AppViewModel) {
+    // Register restoration before asynchronous startup can temporarily hide the navigation tree.
+    val nav = rememberNavController()
+    val databaseLoading by vm.loading.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
     val startupError by vm.startupError.collectAsStateWithLifecycle()
     val settingsError by vm.settingsError.collectAsStateWithLifecycle()
@@ -51,14 +54,15 @@ fun MemoryApp(vm: AppViewModel) {
                         if (settingsError)
                             TextButton(onClick = { resetConfirm = true }) { Text("恢复默认设置") }
                     }
-                } else if (!ready) CircularProgressIndicator(Modifier.align(Alignment.Center))
+                } else if (!ready || databaseLoading)
+                    CircularProgressIndicator(Modifier.align(Alignment.Center))
                 else {
                     Box(
                         if (settings.pinHash.isNotEmpty() && !unlocked)
                             Modifier.clearAndSetSemantics {}
                         else Modifier
                     ) {
-                        AppNavigation(vm, snack)
+                        AppNavigation(vm, snack, nav)
                     }
                     if (settings.pinHash.isNotEmpty() && !unlocked) {
                         val focus = LocalFocusManager.current
@@ -244,8 +248,11 @@ private fun LockScreen(vm: AppViewModel) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppNavigation(vm: AppViewModel, snack: SnackbarHostState) {
-    val nav = rememberNavController()
+private fun AppNavigation(
+    vm: AppViewModel,
+    snack: SnackbarHostState,
+    nav: androidx.navigation.NavHostController,
+) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     var add by remember { mutableStateOf(false) }

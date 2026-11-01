@@ -121,6 +121,8 @@ class AppSmokeTest {
         compose.onNodeWithContentDescription("添加").performClick()
         compose.onNodeWithText("快速记录").performClick()
         compose.onNodeWithText("标题").performTextInput("旋转后保留的草稿")
+        compose.waitForIdle()
+        compose.onNodeWithText("旋转后保留的草稿").assertExists()
         compose.activityRule.scenario.recreate()
         compose.waitUntil(120_000) {
             compose.onAllNodesWithText("旋转后保留的草稿").fetchSemanticsNodes().isNotEmpty()

@@ -91,7 +91,7 @@ fun StorageScreen(vm: AppViewModel, back: () -> Unit) {
                     "回忆图片" to size(r.memories),
                     "档案图片" to size(r.profile),
                     "心愿图片" to size(r.wishes),
-                    "未使用图片" to "${r.unused.size}",
+                    "未使用图片" to "${r.unreferencedCount}",
                     "可释放空间" to size(r.unused.sumOf { it.bytes }),
                     "最近备份" to
                         if (settings.lastBackup == 0L) "暂无"

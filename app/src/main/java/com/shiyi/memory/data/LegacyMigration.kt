@@ -57,9 +57,16 @@ object LegacyMigration {
                                     check(Crypto.sha256(it) == Crypto.sha256(original))
                                 }
                             }
-                        val escaped = stage.path.replace("'", "''")
+                        // An attachment inherits the source connection's read/write-only flags.
+                        // Create the encrypted staging file explicitly before attaching it.
+                        CipherDatabase.openOrCreateDatabase(stage, key, null, null).use { target ->
+                            target.version = source.version
+                        }
                         val password = key.toString(Charsets.US_ASCII)
-                        source.execSQL("ATTACH DATABASE '$escaped' AS encrypted KEY '$password'")
+                        source.execSQL(
+                            "ATTACH DATABASE ? AS encrypted KEY ?",
+                            arrayOf<Any>(stage.path, password),
+                        )
                         try {
                             source
                                 .rawQuery(
