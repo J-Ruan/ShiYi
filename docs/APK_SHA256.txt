@@ -1,1 +1,5 @@
-488177ce2948310dc5b4ca14a471d48fff075aae1ec5b10f1fa8360667e396bb  app/build/outputs/apk/debug/app-debug.apk
+1.1.0 local engineering artifacts; NOT production-signed release checksums.
+Application source: d5e79043cda4d37dcc5a1d7db77ebaf2717f1b0a
+
+0193d3bc695ac3f731f6da28e6d48e44f90d9dafcf6b60c6b0432281e8d8e310  app/build/outputs/apk/debug/app-debug.apk  (40775574 bytes)
+966b5ebb240991d2a1353b905fb432a951cd762a713a01db8156cded58fc7421  app/build/outputs/apk/release/app-release-unsigned.apk  (33523126 bytes)

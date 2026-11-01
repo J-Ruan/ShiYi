@@ -1,18 +1,56 @@
 {
   "version": "1.1.0",
-  "status": "candidate",
+  "versionCode": 2,
+  "applicationId": "com.shiyi.memory",
+  "databaseSchema": 3,
+  "status": "tested_candidate_signing_blocked",
+  "applicationSourceCommit": "d5e79043cda4d37dcc5a1d7db77ebaf2717f1b0a",
+  "ci": "https://github.com/J-Ruan/ShiYi/actions/runs/41278695985",
   "jvm": {
-    "tests": 44,
+    "tests": 45,
+    "failures": 0,
+    "skipped": 0
+  },
+  "device": {
+    "api": 30,
+    "tests": 20,
     "failures": 0
   },
-  "build": {
-    "debug": true,
-    "unsignedRelease": true,
-    "androidTest": true,
-    "lintBlockingErrors": 0
+  "screenshots": {
+    "count": 18,
+    "reviewed": true,
+    "folder": "docs/screenshots/1.1.0"
   },
-  "device": "pending",
-  "screenshots": "pending",
-  "productionSignature": "not_available_in_environment",
-  "githubRelease": null
+  "localArtifacts": {
+    "debug": {
+      "file": "app/build/outputs/apk/debug/app-debug.apk",
+      "bytes": 40775574,
+      "sha256": "0193d3bc695ac3f731f6da28e6d48e44f90d9dafcf6b60c6b0432281e8d8e310",
+      "signatureVerified": true,
+      "debuggable": true,
+      "package": "package: name='com.shiyi.memory' versionCode='2' versionName='1.1.0' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'",
+      "privacyPermissionsAbsent": true,
+      "thirdPartyNoticesIncluded": true
+    },
+    "unsignedRelease": {
+      "file": "app/build/outputs/apk/release/app-release-unsigned.apk",
+      "bytes": 33523126,
+      "sha256": "966b5ebb240991d2a1353b905fb432a951cd762a713a01db8156cded58fc7421",
+      "signatureVerified": false,
+      "debuggable": false,
+      "package": "package: name='com.shiyi.memory' versionCode='2' versionName='1.1.0' platformBuildVersionName='15' platformBuildVersionCode='35' compileSdkVersion='35' compileSdkVersionCodename='15'",
+      "privacyPermissionsAbsent": true,
+      "thirdPartyNoticesIncluded": true
+    }
+  },
+  "productionSignature": "not_produced_missing_ANDROID_KEYSTORE_BASE64",
+  "githubRelease": null,
+  "testSourceCommit": "ef9b21e751a3eba1938365d61afe3b008c250414",
+  "releaseAttempt": {
+    "url": "https://github.com/J-Ruan/ShiYi/actions/runs/41277945397",
+    "verify": "success",
+    "publish": "blocked",
+    "reason": "Missing required signing configuration: KEYSTORE_BASE64"
+  },
+  "gitTag": null
 }

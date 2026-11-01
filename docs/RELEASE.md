@@ -2,6 +2,10 @@
 
 正式签名是发布硬条件。仓库从未提交 keystore；当前云环境未提供正式密钥，GitHub Secrets 读取接口返回 403，不能据此断言仓库没有 Secrets。没有可用正式签名时只构建 unsigned Release，绝不创建稳定版 Tag / Release，也不将 debug 附件冒充正式版。
 
+实际发布尝试：[Signed release 41277945397](https://github.com/J-Ruan/ShiYi/actions/runs/41277945397)。发布前测试通过，签名步骤明确停止于 `Missing required signing configuration: KEYSTORE_BASE64`，即工作流读取不到 `ANDROID_KEYSTORE_BASE64` Secret。未创建 Tag / Release。配置完成后重新运行此工作流即可继续，无需改用 Debug 签名。
+
+签名门禁已用真实 Debug APK 和未签名 APK 做反例验证，均拒绝；即使把 Debug 证书指纹配置成预期指纹，也不会将它认作正式证书。
+
 ## 一次性准备（在自己可信的电脑上）
 
 1. 如果已有发行密钥，继续使用它，跳过生成步骤。新项目只生成一次：

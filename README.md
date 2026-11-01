@@ -4,7 +4,7 @@
 
 **1.1.0 开发候选** · Android 8.0+（API 26）· `com.shiyi.memory` · MIT
 
-> 正式发行须通过全部测试与正式签名验证。当前交付状态及未执行项目见 [验证记录](docs/TESTING.md)。未满足条件前不会创建 v1.1.0 稳定版。
+> 开发与主要自动化验收已完成。正式发布尝试在签名预检停止：工作流读取不到 `ANDROID_KEYSTORE_BASE64`。尚无 v1.1.0 稳定 Release；请按 [签名配置步骤](docs/RELEASE.md) 完成长久密钥和 Secrets 配置。实际范围见 [验证记录](docs/TESTING.md)。
 
 [GitHub Releases](https://github.com/J-Ruan/ShiYi/releases) · [签名与发布配置](docs/RELEASE.md) · [更新记录](CHANGELOG.md)
 
@@ -26,7 +26,13 @@
 
 保留奶油白、柔和粉与雾紫。统一 26sp 页面标题、20sp 模块标题、17sp 卡片标题及 14–16sp 正文；移除解释性副标题，卡片突出图片、标题和日期，高级筛选与字段按需展开。支持浅色 / 深色 / 跟随系统。
 
-自动化截图只使用合成文字和生成图形。截图范围、实际结果和检查说明见 [测试记录](docs/TESTING.md)；旧版图片不作为 1.1.0 验收证据。
+以下为 API 30 自动化生成的合成数据页面，已逐页检查；[完整 18 页截图及检查](docs/screenshots/1.1.0/README.md)。
+
+| 首页 | 回忆 | TA 的档案 | 深色模式 |
+|---|---|---|---|
+| ![首页](docs/screenshots/1.1.0/home.png) | ![回忆](docs/screenshots/1.1.0/memories.png) | ![档案](docs/screenshots/1.1.0/profile.png) | ![深色](docs/screenshots/1.1.0/dark.png) |
+
+[45 项 JVM / 20 项设备测试的成功 CI](https://github.com/J-Ruan/ShiYi/actions/runs/41278695985) · [验证范围与未执行项目](docs/TESTING.md)。旧版截图不作为本轮证据。
 
 ## 数据与隐私
 
