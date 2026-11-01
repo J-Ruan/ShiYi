@@ -38,7 +38,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$KEYSTORE_BASE64" && test -n "$ANDROID_KEYSTORE_PASSWORD" && test -n "$ANDROID_KEY_ALIAS" && test -n "$ANDROID_KEY_PASSWORD" && test -n "$EXPECTED_CERT_SHA256"
+          for configuration_name in KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD EXPECTED_CERT_SHA256; do
+            if [[ -z "${!configuration_name:-}" ]]; then
+              echo "::error::Missing required signing configuration: $configuration_name"
+              exit 1
+            fi
+          done
           keydir=$(mktemp -d "$RUNNER_TEMP/shiyi-signing.XXXXXX")
           trap 'rm -rf "$keydir"' EXIT
           umask 077
@@ -46,13 +51,7 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
           ./gradlew --no-daemon clean testDebugUnitTest lint assembleRelease
           apk=app/build/outputs/apk/release/app-release.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$apk" > "$keydir/signature.txt"
-          actual=$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$keydir/signature.txt" | tr '[:upper:]' '[:lower:]')
-          test "$actual" = "$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-          ! rg -q 'CN=Android Debug' "$keydir/signature.txt"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" > "$keydir/badging.txt"
-          rg -q "versionName='$VERSION'" "$keydir/badging.txt"
-          ! rg -q 'application-debuggable' "$keydir/badging.txt"
+          bash scripts/verify-production-apk.sh "$apk"
           mkdir -p release-assets
           cp "$apk" "release-assets/ShiYi-$VERSION-release.apk"
           (cd release-assets && sha256sum "ShiYi-$VERSION-release.apk" > SHA256SUMS.txt)
