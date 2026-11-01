@@ -6,6 +6,7 @@
 |---|---|---|
 | Kotlin、Coroutines、kotlinx.serialization | Apache-2.0 | 语言、异步与 JSON |
 | AndroidX / Jetpack / Material 3 | Apache-2.0 | UI、数据库、导航、设置、EXIF、生物识别 |
+| SQLCipher Android 4.10.0 / SQLCipher | BSD-3-Clause；内含 OpenSSL Apache-2.0 / SQLite public domain | 本地数据库加密 |
 | Coil | Apache-2.0 | 本地图片加载 |
 | Gradle Wrapper / Gradle | Apache-2.0 | 构建工具 |
 | JUnit 4 | EPL-1.0 | 仅测试 |

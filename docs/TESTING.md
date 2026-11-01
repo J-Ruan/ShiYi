@@ -1,57 +1,28 @@
-# 实际验证记录
+# 1.1.0 验证记录
 
-日期：2026-10-31。环境：Linux，完整 JDK 21，Gradle Wrapper 8.13，AGP 8.9.3，Kotlin 2.1.20，SDK 35。APK 最低 API 26、目标 API 35，包含 arm64-v8a / armeabi-v7a / x86 / x86_64。签名为 Gradle 默认 debug 签名。
+2026-11-01，当前为开发候选，未正式发布。
 
-## 构建与 JVM 测试
+## 已实际执行
 
-最终冻结源码已重新执行 `./gradlew clean testDebugUnitTest lint assembleDebug`：58 个任务全部执行，32 秒完成，结果 `BUILD SUCCESSFUL`。设备测试 APK 另外构建并在下述分组实际运行。
+- `clean testDebugUnitTest lint assembleDebug assembleRelease assembleDebugAndroidTest`：构建成功。
+- JVM 44 项通过、0 失败：业务逻辑 19、备份 / PIN 加密 7、图片分块加密 3、数据层 14、schema 1→3 迁移 1。
+- 包括 3,000 条合成记录的日期窗口、回收站恢复 / 共用图片、回收站备份、本机设置保留及清理前引用复核。
+- JVM 数据层使用隔离明文 SQLite fixture 与测试密钥，**不代表真实 SQLCipher / Keystore 已通过设备验证**。
+- Lint 完成，无构建阻断错误；详细建议以实际报告为准。
+- Debug、未签名 Release 和 androidTest APK 已生成。未签名 Release 不可作为正式发行 APK。
 
-| 测试组 | 数量 | 结果 |
-|---|---:|---|
-| LogicTest | 19 | 全部通过，无跳过 |
-| CryptoTest | 7 | 全部通过，无跳过 |
-| DatabaseTest | 10 | 全部通过，无跳过 |
-| MigrationTest | 1 | 通过，无跳过 |
-| 合计 | 37 | 0 失败，0 跳过 |
+## 设备验证
 
-覆盖中文子字符串跨模块搜索与标签检索、日期范围、往年今日、闰日与跨年提醒、未来纪念日首次发生日期、创建/实现时间统计、AES-GCM 随机性与多块还原、错误密码、头部/密文篡改、截断和追加拒绝、PIN 哈希、数据库 CRUD、标签去重、双向关联、删除级联与 SET NULL、重启持久化、事务回滚、JSON + 原图 + 关联 + 设置的加密备份恢复，以及缺失图片时拒绝不完整备份、恢复任务取消后数据库与图片仍保持一致。
+设备测试已扩展：PlatformTest（原图、MIME、PDF 中文 / 长截图、备份损坏、隐私权限、提醒、擦除与空安装保护）；SecurityUpgradeTest（真实 SQLCipher / Keystore、旧数据加密迁移、中断重试、缺图失败、图片篡改、共用引用）；AppSmokeTest（CRUD / 回收站、锁、旋转、多图、系统分享、选择器取消）；VisualTest（18 页合成数据截图）。
 
-迁移测试从版本 1 的结构夹具创建数据库、插入历史心愿，再用生产的 Migration(1,2) 升级并由 Room 校验最终结构。历史数据、备注和状态保留，不虚构心愿实现时间。`schemas/1.json` 是供迁移回归使用的结构夹具，`schemas/2.json` 为 Room 当前导出的 schema。
+当前云环境没有 /dev/kvm。独立 API 30 软件模拟器首次启动后系统服务未就绪，已重启诊断；本轮设备结果及截图尚未完成，**不能声称上述测试已经通过**。GitHub Actions 使用全新硬件加速 API 30 模拟器补充执行。后续结果追加到此文档。
 
-Android Lint 没有错误；剩余两条建议为保守容量检查使用 usableSpace，以及 Canvas 使用 KTX 辅助函数，不影响构建。没有关闭规则或使用 baseline 隐藏构建错误。
+没有接触日常手机或真实照片。每次设备测试先检查空安装；数据层测试使用独立数据库、目录和合成样本。不得删除已有真实数据来通过测试。
 
-## APK 与隐私检查
+## 发布门槛
 
-- APK 已生成，校验值见 `docs/APK_SHA256.txt`，机器可读结果见 `docs/verification.json`：`app/build/outputs/apk/debug/app-debug.apk`。
-- apksigner 验证 v2 签名通过，1 个签名者；非正式发行签名。
-- aapt 核对启动 Activity 为 `com.shiyi.memory.MainActivity`。
-- 最终 Manifest 没有 INTERNET、READ_MEDIA_IMAGES、READ_EXTERNAL_STORAGE 或 SCHEDULE_EXACT_ALARM 权限。
-- 关闭 allowBackup；cloud-backup 与 device-transfer 排除应用数据。
-- SDK / Gradle / JDK 下载保留 TLS 与官方校验，没有绕过验证。
-- `scripts/cloud-setup.sh` 已实际执行成功，能够重复准备并构建环境。
+本轮真实加密迁移、核心 UI、截图检查与 GitHub Actions 仍需实际通过。当前环境未提供正式签名密钥；读取仓库 Secrets 的 API 返回 403，无法证明其配置状态。正式签名校验和正式 APK 安装尚未执行。
 
-## Android 模拟器
+没有创建 v1.1.0 Tag / 稳定 Release，没有上传假冒正式 APK。签名配置见 [RELEASE.md](RELEASE.md)。生物识别硬件、荣耀实机、Android 13+ 授权、低空间 / 大规模媒体压力尚未实机执行，不以推测代替结果。
 
-使用 AOSP Android 11 / API 30、x86_64、320×640 软件模拟器，无 /dev/kvm。安装成功。首次启动期间系统 UI 曾发生 ANR；在系统完全启动后，独立回忆 CRUD 和四页面导航测试通过。后续分组验证见下方最终结果。
-
-一次完整设备测试运行中，应用锁的后台重锁、错误密码拒绝与正确解锁通过，随后下一项 UI 测试遭遇系统 5 秒焦点分发超时，运行器以 keyDispatchingTimedOut 终止。该次运行仅 1 项通过、1 项失败、7 项未执行，不能将该次整套测试描述为通过。随后对最终 APK 预编译并分组重试，避免该超时阻止独立功能验证。
-
-最终按独立运行器分组验证，四项 UI 场景曾分组全部通过；当前平台组为 **8 项全部通过，0 跳过**：
-
-| 分组 | 数量 | 结果 / 验证内容 |
-|---|---:|---|
-| 回忆 CRUD 与四个主页面 | 1 | 新增、查看、修改、删除、页面切换通过 |
-| 多图浏览 | 1 | 原图加载、全屏进入、实际左右翻页通过 |
-| 截图 / 主题 / 旋转 | 1 | 五张真实截图；深色切换、旋转后草稿保留通过 |
-| 应用锁 | 1 | 已打开弹窗时后台重锁、错误 PIN、正确解锁通过 |
-| 平台功能 | 8 | 原图哈希及分享 MIME、多页中文 PDF、长截图分页、损坏备份拒绝、隐私权限、本地通知、彻底删除、拒绝既有资料的测试保护通过 |
-
-长截图回归曾暴露 PNG 未定义 EXIF 方向时跳过分段的问题，已修复并保持原断言；最新测试实际渲染 PDF，确认首段和末段的色块均完整，防止截断。彻底删除测试还检查媒体文件已删除、设置复位、数据库不再含测试内容、WAL 长度为 0。
-
-当前确认 **37 项 JVM 测试与 8 项平台测试通过**。四项 UI 场景已在此前的分项执行中全部通过；新增空数据前置保护后，最新一次 CRUD 重跑在 Activity 焦点阶段被 `keyDispatchingTimedOut` 中止，业务断言未完成，不能将这次复测计入通过。空设备检查已放到 Activity 启动前，平台组还验证了遇到既有资料时拒绝执行，不删除原记录。平台用例结束会恢复原设置。
-
-该软件模拟器没有 KVM，并先后出现 Android 系统进程 / System UI ANR。最终新安装的 APK 在恢复系统 UI 后，启动命令返回 `Status: ok`，界面层级实际包含「拾忆 / 最近回忆 / 首页」。冷启动及 UI 稳定性仍需在有加速能力的环境或真机完成验收。真实截图在 `docs/screenshots/`，只含空数据与合成内容。
-
-## 仍需真机验收
-
-本云环境没有荣耀 90 真机、Android 13+ 通知授权设备或已录入生物识别硬件。以下仍需在相应真机实际验证：通知授权 / 拒绝、指纹或人脸对话框、荣耀电池策略、重启与时区变化下的真实闹钟投递、多款文件提供器与原生 Photo Picker、真正低存储空间、超大图库的长时间性能与电池表现。应用锁不是数据库/媒体加密；软件模拟器不构成生产性能基准。
+1.0.0 历史测试结果不作为 1.1.0 的验收结果。

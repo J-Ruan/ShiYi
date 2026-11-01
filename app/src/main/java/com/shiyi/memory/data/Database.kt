@@ -63,6 +63,19 @@ interface MemoryDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun put(value: MemoryLink)
 
+    @Query("UPDATE Memory SET deletedAt=:time WHERE id=:id")
+    suspend fun setDeleted(id: String, time: Long?)
+
+    @Query(
+        "SELECT * FROM Memory WHERE deletedAt IS NULL AND (:from='' OR date>=:from) AND (:to='' OR date<=:to) ORDER BY date DESC LIMIT :limit OFFSET :offset"
+    )
+    suspend fun memoryPage(
+        from: String = "",
+        to: String = "",
+        limit: Int = 50,
+        offset: Int = 0,
+    ): List<Memory>
+
     @Query("DELETE FROM Memory WHERE id=:id") suspend fun deleteMemory(id: String)
 
     @Query("DELETE FROM ProfileEntry WHERE id=:id") suspend fun deleteEntry(id: String)
@@ -78,6 +91,9 @@ interface MemoryDao {
     @Query("DELETE FROM MemoryMedia WHERE memoryId=:id") suspend fun clearMedia(id: String)
 
     @Query("DELETE FROM MemoryTagCrossRef WHERE memoryId=:id") suspend fun clearTags(id: String)
+
+    @Query("DELETE FROM ProfileMemoryCrossRef WHERE memoryId=:id")
+    suspend fun clearMemoryProfileLinks(id: String)
 
     @Query("DELETE FROM ProfileMemoryCrossRef WHERE profileId=:id")
     suspend fun clearProfileLinks(id: String)
@@ -122,7 +138,7 @@ interface MemoryDao {
             MemoryLink::class,
             Category::class,
         ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class MemoryDatabase : RoomDatabase() {
@@ -137,9 +153,35 @@ abstract class MemoryDatabase : RoomDatabase() {
                 }
             }
 
-        fun open(context: Context, name: String = "memory.db") =
-            Room.databaseBuilder(context, MemoryDatabase::class.java, name)
-                .addMigrations(MIGRATION_1_2)
-                .build()
+        val MIGRATION_2_3 =
+            object : Migration(2, 3) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE Memory ADD COLUMN deletedAt INTEGER")
+                    db.execSQL(
+                        "CREATE INDEX IF NOT EXISTS index_Memory_deletedAt ON Memory(deletedAt)"
+                    )
+                }
+            }
+
+        fun open(context: Context, name: String = "memory.db"): MemoryDatabase {
+            System.loadLibrary("sqlcipher")
+            if (name == "memory.db") LegacyMigration.prepare(context)
+            val key = LocalKeys.database(context)
+            // Factory owns its copy for reopen; clear our temporary key immediately.
+            return try {
+                Room.databaseBuilder(
+                        context,
+                        MemoryDatabase::class.java,
+                        if (name == "memory.db") "memory-secure.db" else name,
+                    )
+                    .openHelperFactory(
+                        net.zetetic.database.sqlcipher.SupportOpenHelperFactory(key.copyOf())
+                    )
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .build()
+            } finally {
+                key.fill(0)
+            }
+        }
     }
 }

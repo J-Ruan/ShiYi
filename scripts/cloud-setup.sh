@@ -5,6 +5,9 @@ cd /workspace/ShiYi
 TASK_TOOLS=/workspace/tooling
 mkdir -p "$TASK_TOOLS"
 export ANDROID_HOME="$TASK_TOOLS/android-sdk"
+export ANDROID_USER_HOME="$TASK_TOOLS/android-user"
+export ANDROID_EMULATOR_HOME="$TASK_TOOLS/android-emulator-home"
+mkdir -p "$ANDROID_USER_HOME" "$ANDROID_EMULATOR_HOME"
 export GRADLE_USER_HOME="$TASK_TOOLS/gradle-home"
 export JAVA_HOME="$TASK_TOOLS/jdk-21.0.8"
 python3 - <<'PY'
@@ -22,7 +25,7 @@ if not (root / 'jdk-21.0.8/bin/javac').exists():
     f = download('https://download.oracle.com/java/21/archive/jdk-21.0.8_linux-x64_bin.tar.gz', 'jdk-21.0.8.tar.gz', 'd87272944278713fc7a120cf024d2818d136b5debc750aa17045e3c6f045b867')
     with tarfile.open(f) as archive: archive.extractall(root, filter='data')
 if not (root / 'android-sdk/cmdline-tools/latest/bin/sdkmanager').exists():
-    f = download('https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip', 'commandlinetools-linux-16111833_latest.zip', 'e025545c62a8e64c7559119566a569fb1dec5f60', 'sha1')
+    f = download('https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip', 'commandlinetools-linux-13114758_latest.zip', '7ec965280a073311c339e571cd5de778b9975026cfcbe79f2b1cdcb1e15317ee')
     target = root / 'android-sdk/cmdline-tools/latest'
     with zipfile.ZipFile(f) as archive:
         for info in archive.infolist():
@@ -57,7 +60,7 @@ if [[ ! -d "$ANDROID_HOME/platforms/android-35" || ! -d "$ANDROID_HOME/build-too
     license_status=${PIPESTATUS[1]}
     set -o pipefail
     [[ "$license_status" == 0 ]]
-    "$ANDROID_HOME/cmdline-tools/latest/bin/android" --no-metrics --sdk="$ANDROID_HOME" sdk install 'platforms;android-35' 'build-tools;35.0.0' platform-tools
+    "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0' platform-tools
 fi
 if [[ ! -f local.properties ]]; then printf 'sdk.dir=%s\n' "$ANDROID_HOME" > local.properties; fi
-./gradlew testDebugUnitTest lint assembleDebug
+./gradlew testDebugUnitTest lint assembleDebug assembleRelease

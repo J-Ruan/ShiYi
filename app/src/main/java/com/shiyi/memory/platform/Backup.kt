@@ -16,7 +16,7 @@ import kotlinx.serialization.json.Json
 
 @Serializable
 data class BackupManifest(
-    val format: Int = 1,
+    val format: Int = 2,
     val data: Snapshot,
     val settings: Settings,
     val checksums: Map<String, String>,
@@ -44,12 +44,12 @@ class BackupService(
                     val manifest =
                         BackupManifest(
                             data = snapshot,
-                            settings = settings.read(),
+                            settings = Settings(theme = settings.read().theme),
                             checksums =
                                 snapshot.images().associateWith { path ->
                                     val file = repository.file(path)
                                     require(file.isFile) { "原图缺失：$path，备份未完成" }
-                                    Crypto.sha256(file)
+                                    repository.images.withOriginal(path) { Crypto.sha256(it) }
                                 },
                         )
                     ZipOutputStream(temp.outputStream().buffered()).use { zip ->
@@ -58,7 +58,7 @@ class BackupService(
                         zip.closeEntry()
                         snapshot.images().sorted().forEach { path ->
                             zip.putNextEntry(ZipEntry("media/$path"))
-                            repository.file(path).inputStream().use { it.copyTo(zip) }
+                            repository.images.copyOriginal(path, zip)
                             zip.closeEntry()
                         }
                     }
@@ -132,7 +132,7 @@ class BackupService(
                 }
                 val manifest =
                     json.decodeFromString<BackupManifest>(File(dir, "manifest.json").readText())
-                require(manifest.format == 1)
+                require(manifest.format in 1..2) { "备份来自更高版本，请先升级拾忆" }
                 validateSnapshot(manifest.data)
                 require(manifest.settings.theme in listOf("system", "light", "dark"))
                 require(manifest.checksums.keys == manifest.data.images()) { "图片清单不完整" }
@@ -165,7 +165,9 @@ class BackupService(
                     mapping.forEach { (old, new) ->
                         val target = repository.file(new)
                         copied += target
-                        File(prepared.folder, "media/$old").copyTo(target)
+                        File(prepared.folder, "media/$old").inputStream().use {
+                            repository.images.write(new, it)
+                        }
                     }
                     val s = prepared.manifest.data
                     val translated =
@@ -181,14 +183,7 @@ class BackupService(
                         )
                     // Preserve this device's lock and notification choices.
                     settings.update {
-                        prepared.manifest.settings.copy(
-                            pinSalt = originalSettings.pinSalt,
-                            pinHash = originalSettings.pinHash,
-                            biometric = originalSettings.biometric,
-                            notifications = originalSettings.notifications,
-                            failedAttempts = originalSettings.failedAttempts,
-                            retryAfter = originalSettings.retryAfter,
-                        )
+                        originalSettings.copy(theme = prepared.manifest.settings.theme)
                     }
                     try {
                         repository.replace(translated)

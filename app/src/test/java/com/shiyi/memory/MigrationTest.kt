@@ -3,7 +3,6 @@ package com.shiyi.memory
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
-import com.shiyi.memory.data.MemoryDatabase
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
@@ -51,14 +50,14 @@ class MigrationTest {
             )
             sqlite.version = 1
         }
-        val database = MemoryDatabase.open(context, path.name)
+        val database = testDatabase(context, path.name)
         try {
             val wish = database.dao().wishes().single()
             assertEquals("历史心愿", wish.title)
             assertEquals("保留的备注", wish.notes)
             assertEquals(2, wish.status)
             assertNull(wish.completedAt)
-            assertEquals(2, database.openHelper.readableDatabase.version)
+            assertEquals(3, database.openHelper.readableDatabase.version)
         } finally {
             database.close()
             context.deleteDatabase(path.name)

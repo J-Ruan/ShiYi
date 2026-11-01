@@ -7,14 +7,20 @@ import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-class MemoryRepository(val context: Context, val db: MemoryDatabase) {
+class MemoryRepository(
+    val context: Context,
+    val db: MemoryDatabase,
+    val images: ImageStorage = ImageStorage(context),
+) {
     val mutex = Mutex()
-    val mediaDir = File(context.filesDir, "media").apply { mkdirs() }
+    val mediaDir = images.directory
     val dao = db.dao()
     val flow =
         db.invalidationTracker
@@ -33,7 +39,9 @@ class MemoryRepository(val context: Context, val db: MemoryDatabase) {
                 "MemoryLink",
                 "Category",
             )
+            .conflate()
             .map { snapshot() }
+            .distinctUntilChanged()
 
     suspend fun snapshot(): Snapshot =
         db.withTransaction {
@@ -54,33 +62,82 @@ class MemoryRepository(val context: Context, val db: MemoryDatabase) {
             )
         }
 
-    fun file(path: String): File {
-        require(path.matches(Regex("[A-Za-z0-9._-]+")) && path != "." && path != "..") { "无效图片路径" }
-        return File(mediaDir, path)
-    }
+    fun file(path: String): File = images.file(path)
 
     suspend fun importImage(uri: Uri): String =
         withContext(Dispatchers.IO) {
             mutex.withLock {
                 val name = newId() + ".img"
-                val target = file(name)
+                val mime = context.contentResolver.getType(uri)
+                require(mime == null || mime.startsWith("image/")) { "请选择图片文件" }
                 try {
-                    context.contentResolver.openInputStream(uri).use { input ->
-                        requireNotNull(input) { "无法读取图片" }
-                        target.outputStream().use { out -> input.copyTo(out) }
+                    requireNotNull(context.contentResolver.openInputStream(uri)) { "无法读取图片" }
+                        .use { source ->
+                            images.write(
+                                name,
+                                object : java.io.FilterInputStream(source) {
+                                    var total = 0L
+
+                                    override fun read(b: ByteArray, off: Int, len: Int): Int {
+                                        val n = super.read(b, off, len)
+                                        if (n > 0) {
+                                            total += n
+                                            require(
+                                                total <= 4L * 1024 * 1024 * 1024 &&
+                                                    mediaDir.usableSpace > 16L * 1024 * 1024
+                                            ) {
+                                                "图片过大或空间不足"
+                                            }
+                                        }
+                                        return n
+                                    }
+                                },
+                            )
+                        }
+                    images.withOriginal(name) { f ->
+                        val bounds =
+                            android.graphics.BitmapFactory.Options().apply {
+                                inJustDecodeBounds = true
+                            }
+                        android.graphics.BitmapFactory.decodeFile(f.path, bounds)
+                        require(bounds.outWidth > 0 && bounds.outHeight > 0) { "文件不是可读取的图片" }
                     }
-                    require(target.length() > 0) { "图片文件为空" }
-                    val options =
-                        android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                    android.graphics.BitmapFactory.decodeFile(target.path, options)
-                    require(options.outWidth > 0 && options.outHeight > 0) { "文件不是可读取的图片" }
                     name
                 } catch (e: Exception) {
-                    target.delete()
+                    file(name).delete()
                     throw e
                 }
             }
         }
+
+    suspend fun updateMemory(value: Memory) = mutex.withLock { dao.put(value) }
+
+    suspend fun updateProfile(value: PartnerProfile) = mutex.withLock { dao.put(value) }
+
+    suspend fun updateWish(value: Wish) = mutex.withLock { dao.put(value) }
+
+    suspend fun updateAnniversary(value: Anniversary) = mutex.withLock { dao.put(value) }
+
+    suspend fun updateCategory(value: Category) = mutex.withLock { dao.put(value) }
+
+    suspend fun restoreMemory(id: String) = mutex.withLock { dao.setDeleted(id, null) }
+
+    suspend fun permanentDelete(id: String) =
+        mutex.withLock {
+            val row = dao.memories().find { it.id == id } ?: return@withLock
+            require(row.deletedAt != null) { "请先将回忆移入回收站" }
+            dao.deleteMemory(id)
+            // Unused files remain recoverable until explicit reviewed maintenance.
+        }
+
+    suspend fun emptyTrash(expiredOnly: Boolean = false) {
+        dao.memories()
+            .filter {
+                it.deletedAt != null &&
+                    (!expiredOnly || it.deletedAt <= System.currentTimeMillis() - 30L * 86400000)
+            }
+            .forEach { permanentDelete(it.id) }
+    }
 
     suspend fun saveMemory(
         memory: Memory,
@@ -113,27 +170,21 @@ class MemoryRepository(val context: Context, val db: MemoryDatabase) {
                     )
                 }
                 dao.clearTags(memory.id)
+                val existingTags = dao.tags().associateBy { it.name }.toMutableMap()
                 tags
                     .map { it.trim() }
                     .filter { it.isNotBlank() }
                     .distinct()
                     .forEach { name ->
                         val tag =
-                            dao.tags().find { it.name == name }
-                                ?: Tag(name = name).also { dao.put(it) }
+                            existingTags[name]
+                                ?: Tag(name = name).also {
+                                    dao.put(it)
+                                    existingTags[name] = it
+                                }
                         dao.put(MemoryTagCrossRef(memory.id, tag.id))
                     }
-                // Replace both directions while retaining every original record.
-                dao.profileRefs()
-                    .filter { it.memoryId == memory.id }
-                    .forEach { old ->
-                        val others =
-                            dao.profileRefs().filter {
-                                it.profileId == old.profileId && it.memoryId != memory.id
-                            }
-                        dao.clearProfileLinks(old.profileId)
-                        others.forEach { dao.put(it) }
-                    }
+                dao.clearMemoryProfileLinks(memory.id)
                 profileIds.forEach { dao.put(ProfileMemoryCrossRef(it, memory.id)) }
                 dao.clearMemoryLinks(memory.id)
                 related.filter { it != memory.id }.forEach { dao.put(MemoryLink(memory.id, it)) }
@@ -171,7 +222,7 @@ class MemoryRepository(val context: Context, val db: MemoryDatabase) {
                 }.filter(String::isNotBlank)
             db.withTransaction {
                 when (kind) {
-                    "memory" -> dao.deleteMemory(id)
+                    "memory" -> dao.setDeleted(id, System.currentTimeMillis())
                     "entry" -> dao.deleteEntry(id)
                     "wish" -> dao.deleteWish(id)
                     "anniversary" -> dao.deleteAnniversary(id)
@@ -219,6 +270,7 @@ class MemoryRepository(val context: Context, val db: MemoryDatabase) {
                 db.withTransaction { clearTables() }
                 settings.update { Settings() }
                 mediaDir.listFiles()?.forEach { it.delete() }
+                File(context.noBackupFilesDir, "share-drafts").deleteRecursively()
                 context.cacheDir.deleteRecursively()
                 context.cacheDir.mkdirs()
                 db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").use {
@@ -234,6 +286,61 @@ class MemoryRepository(val context: Context, val db: MemoryDatabase) {
 
     // Only explicit maintenance removes unreferenced files. Import and form edits can coexist
     // safely.
+    private fun retainedImages(s: Snapshot): Set<String> {
+        val drafts =
+            File(context.noBackupFilesDir, "share-drafts").listFiles().orEmpty().filter {
+                it.isFile && !it.name.endsWith(".bak")
+            }
+        return s.images() +
+            drafts.flatMap {
+                kotlinx.serialization.json.Json.decodeFromString<List<String>>(it.readText())
+            }
+    }
+
+    suspend fun storageReport(): StorageReport =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val s = snapshot()
+                val all = mediaDir.listFiles().orEmpty().filter { it.isFile }
+                val used = retainedImages(s)
+                val candidates =
+                    all.filter {
+                        it.name !in used &&
+                            it.lastModified() < System.currentTimeMillis() - 86400000
+                    }
+                fun bytes(paths: Set<String>) =
+                    all.filter { it.name in paths }.sumOf { it.length() }
+                StorageReport(
+                    all.size,
+                    all.sumOf { it.length() },
+                    bytes(s.media.map { it.path }.toSet()),
+                    bytes(s.partner.map { it.avatar }.toSet()),
+                    bytes(s.wishes.map { it.image }.toSet()),
+                    candidates.map { StorageFile(it.name, it.length(), it.lastModified()) },
+                )
+            }
+        }
+
+    suspend fun cleanReviewed(files: List<StorageFile>): Long =
+        withContext(Dispatchers.IO) {
+            mutex.withLock {
+                val used = retainedImages(snapshot())
+                var bytes = 0L
+                files.forEach { reviewed ->
+                    val f = File(mediaDir, reviewed.name)
+                    require(f.parentFile == mediaDir && f.name !in used) { "清理清单已变化，请重新预览" }
+                    if (
+                        f.isFile &&
+                            f.length() == reviewed.bytes &&
+                            f.lastModified() == reviewed.modified &&
+                            f.delete()
+                    )
+                        bytes += reviewed.bytes
+                }
+                bytes
+            }
+        }
+
     suspend fun cleanUnusedMedia(): Long =
         withContext(Dispatchers.IO) {
             mutex.withLock {
@@ -253,3 +360,14 @@ class MemoryRepository(val context: Context, val db: MemoryDatabase) {
             }
         }
 }
+
+data class StorageFile(val name: String, val bytes: Long, val modified: Long)
+
+data class StorageReport(
+    val count: Int,
+    val total: Long,
+    val memories: Long,
+    val profile: Long,
+    val wishes: Long,
+    val unused: List<StorageFile>,
+)

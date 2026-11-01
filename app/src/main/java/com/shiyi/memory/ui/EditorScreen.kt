@@ -24,20 +24,33 @@ import java.time.*
 fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back: () -> Unit) {
     val s by vm.data.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
-    val m = s.memories.find { it.id == id }
+    val m = s.activeMemories.find { it.id == id }
     val e = s.entries.find { it.id == id }
     val w = s.wishes.find { it.id == id }
     val a = s.anniversaries.find { it.id == id }
     val c = s.collections.find { it.id == id }
     val p = s.partner.firstOrNull() ?: PartnerProfile()
-    val recordId = rememberSaveable { if (id == "new") newId() else id }
+    var saved by remember { mutableStateOf(false) }
+    var more by rememberSaveable { mutableStateOf(id != "new" || type == "chat") }
+    val shareId = type.removePrefix("share-").takeIf { type.startsWith("share-") }
+    val sharedPaths =
+        remember(shareId) {
+            shareId
+                ?.let {
+                    runCatching { com.shiyi.memory.platform.ShareImport(vm.app, vm.repo).paths(it) }
+                        .getOrDefault(emptyList())
+                }
+                .orEmpty()
+        }
+    var recordId by
+        rememberSaveable(kind, id, type) { mutableStateOf(if (id == "new") newId() else id) }
     val stateSaver =
         mapSaver<androidx.compose.runtime.snapshots.SnapshotStateMap<String, String>>(
             save = { it.toMap() },
             restore = { it.entries.map { x -> x.key to (x.value as String) }.toMutableStateMap() },
         )
     val form =
-        rememberSaveable(kind, id, saver = stateSaver) {
+        rememberSaveable(kind, id, type, saver = stateSaver) {
             mutableStateMapOf<String, String>().apply {
                 when (kind) {
                     "memory" ->
@@ -60,8 +73,16 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                                 "pinned" to (m?.pinned ?: false).toString(),
                                 "tags" to s.tagsFor(id).joinToString(","),
                                 "images" to
-                                    s.media
-                                        .filter { it.memoryId == id }
+                                    (if (shareId != null)
+                                            sharedPaths.mapIndexed { i, path ->
+                                                MemoryMedia(
+                                                    memoryId = recordId,
+                                                    path = path,
+                                                    position = i,
+                                                )
+                                            }
+                                        else s.media)
+                                        .filter { shareId != null || it.memoryId == id }
                                         .sortedBy { it.position }
                                         .joinToString(",") { it.path },
                                 "cover" to m?.coverPath.orEmpty(),
@@ -143,7 +164,7 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
         }
     fun value(key: String) = form[key].orEmpty()
     fun ids(key: String) = value(key).split(',').filter(String::isNotBlank).toSet()
-    val allMemories = s.memories.filter { it.id != id }.map { it.id to it.title }
+    val allMemories = s.activeMemories.filter { it.id != id }.map { it.id to it.title }
     @Composable
     fun f(label: String, key: String, multi: Boolean = false) =
         Field(label, value(key), { form[key] = it }, multi)
@@ -153,8 +174,13 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
     @Composable
     fun related() =
         MultiSelect("关联回忆", allMemories, ids("related")) { form["related"] = it.joinToString(",") }
+    fun exit() {
+        shareId?.let { com.shiyi.memory.platform.ShareImport(vm.app, vm.repo).finish(it) }
+        back()
+    }
+    androidx.activity.compose.BackHandler { exit() }
     fun save() {
-        vm.action(onSuccess = back) {
+        vm.action(onSuccess = { if (kind == "memory" && id == "new") saved = true else exit() }) {
             require(value("title").trim().isNotBlank()) { "请填写标题或昵称" }
             when (kind) {
                 "memory" -> {
@@ -204,7 +230,7 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                 "wish" -> {
                     if (value("plannedDate").isNotBlank()) LocalDate.parse(value("plannedDate"))
                     val status = value("status").toInt()
-                    vm.repo.dao.put(
+                    vm.repo.updateWish(
                         Wish(
                             recordId,
                             value("title").trim(),
@@ -225,7 +251,7 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                     LocalDate.parse(value("date"))
                     val days = value("advance").toIntOrNull()
                     require(days != null && days in 0..365) { "提前天数需为 0–365" }
-                    vm.repo.dao.put(
+                    vm.repo.updateAnniversary(
                         Anniversary(
                             recordId,
                             value("title").trim(),
@@ -253,7 +279,7 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                     ) {
                         "相识日期不能晚于今天"
                     }
-                    vm.repo.dao.put(
+                    vm.repo.updateProfile(
                         p.copy(
                             nickname = value("title").trim(),
                             myNickname = value("myNickname").ifBlank { "我" },
@@ -279,7 +305,7 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                         "anniversary" -> "纪念日"
                         else -> "合集"
                     },
-            back = back,
+            back = ::exit,
             actions = { TextButton(onClick = ::save, enabled = !busy) { Text("保存") } },
         )
         Column(
@@ -287,10 +313,10 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 40.dp)
         ) {
-            f(if (kind == "partner") "TA 的昵称" else "标题 *", "title")
+            f(if (kind == "partner") "TA 的昵称" else "标题", "title")
             when (kind) {
                 "memory" -> {
-                    Choices("回忆类型", value("type"), memoryTypes) { form["type"] = it }
+
                     MediaEditor(
                         vm,
                         value("images").split(',').filter(String::isNotBlank),
@@ -300,34 +326,44 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                     )
                     f("回忆描述", "description", true)
                     date("发生日期", "date")
-                    f("发生时间（可选，HH:mm）", "time")
-                    f("地点（可选）", "location")
-                    f("心情（可选）", "mood")
-                    if (value("type") == "聊天收藏") {
-                        Section("手动收藏聊天", "截图只作为原图保存，不读取图片文字。")
-                        f("聊天摘录", "excerpt", true)
-                        f("聊天背景", "context", true)
-                        f("收藏理由", "reason", true)
-                        f("个人感受", "feeling", true)
+                    TextButton(onClick = { more = !more }) { Text(if (more) "收起细节" else "更多细节") }
+                    if (more) {
+                        Choices("回忆类型", value("type"), memoryTypes) { form["type"] = it }
+                        f("发生时间（HH:mm）", "time")
+                        f("地点（可选）", "location")
+                        f("心情（可选）", "mood")
+                        if (value("type") == "聊天收藏") {
+                            Section("手动收藏聊天", "截图只作为原图保存，不读取图片文字。")
+                            f("聊天摘录", "excerpt", true)
+                            f("聊天背景", "context", true)
+                            f("收藏理由", "reason", true)
+                            f("个人感受", "feeling", true)
+                        }
+                        f("自定义分类", "category")
+                        Choices(
+                            "选择已有分类",
+                            value("category"),
+                            listOf("") +
+                                s.categories.filter { it.scope == "回忆" }.map { it.name } +
+                                s.activeMemories.map { it.category }.filter(String::isNotBlank),
+                        ) {
+                            form["category"] = it
+                        }
+                        f("标签（用逗号分隔）", "tags")
+                        f("自定义关键词", "keywords")
+                        Toggle("收藏", value("favorite").toBoolean()) {
+                            form["favorite"] = it.toString()
+                        }
+                        Toggle("置顶", value("pinned").toBoolean()) { form["pinned"] = it.toString() }
+                        MultiSelect(
+                            "关联 TA 的档案",
+                            s.entries.map { it.id to it.title },
+                            ids("profiles"),
+                        ) {
+                            form["profiles"] = it.joinToString(",")
+                        }
+                        related()
                     }
-                    f("自定义分类", "category")
-                    Choices(
-                        "选择已有分类",
-                        value("category"),
-                        listOf("") +
-                            s.categories.filter { it.scope == "回忆" }.map { it.name } +
-                            s.memories.map { it.category }.filter(String::isNotBlank),
-                    ) {
-                        form["category"] = it
-                    }
-                    f("标签（用逗号分隔）", "tags")
-                    f("自定义关键词", "keywords")
-                    Toggle("收藏", value("favorite").toBoolean()) { form["favorite"] = it.toString() }
-                    Toggle("置顶", value("pinned").toBoolean()) { form["pinned"] = it.toString() }
-                    MultiSelect("关联 TA 的档案", s.entries.map { it.id to it.title }, ids("profiles")) {
-                        form["profiles"] = it.joinToString(",")
-                    }
-                    related()
                 }
                 "entry" -> {
                     f("详细内容", "content", true)
@@ -363,11 +399,11 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                     f("备注", "notes", true)
                     Choices(
                         "关联回忆",
-                        s.memories.find { it.id == value("memory") }?.title.orEmpty(),
-                        listOf("") + s.memories.map { it.title + " · " + it.id.take(8) },
+                        s.activeMemories.find { it.id == value("memory") }?.title.orEmpty(),
+                        listOf("") + s.activeMemories.map { it.title + " · " + it.id.take(8) },
                     ) { choice ->
                         form["memory"] =
-                            s.memories
+                            s.activeMemories
                                 .find { it.title + " · " + it.id.take(8) == choice }
                                 ?.id
                                 .orEmpty()
@@ -387,11 +423,11 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
                     )
                     Choices(
                         "关联回忆",
-                        s.memories.find { it.id == value("memory") }?.title.orEmpty(),
-                        listOf("") + s.memories.map { it.title + " · " + it.id.take(8) },
+                        s.activeMemories.find { it.id == value("memory") }?.title.orEmpty(),
+                        listOf("") + s.activeMemories.map { it.title + " · " + it.id.take(8) },
                     ) { choice ->
                         form["memory"] =
-                            s.memories
+                            s.activeMemories
                                 .find { it.title + " · " + it.id.take(8) == choice }
                                 ?.id
                                 .orEmpty()
@@ -423,6 +459,41 @@ fun EditorScreen(vm: AppViewModel, kind: String, id: String, type: String, back:
             }
         }
     }
+    if (saved)
+        AlertDialog(
+            onDismissRequest = {
+                saved = false
+                exit()
+            },
+            title = { Text("已保存") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        shareId?.let {
+                            com.shiyi.memory.platform.ShareImport(vm.app, vm.repo).finish(it)
+                        }
+                        recordId = newId()
+                        form.keys.toList().forEach { form[it] = "" }
+                        form["type"] = "瞬间记录"
+                        form["date"] = today().toString()
+                        saved = false
+                        more = false
+                    }
+                ) {
+                    Text("继续记录")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        saved = false
+                        exit()
+                    }
+                ) {
+                    Text("完成")
+                }
+            },
+        )
 }
 
 @Composable
@@ -439,6 +510,7 @@ private fun MediaEditor(
     val picker =
         rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(100)) {
             uris ->
+            vm.endExternal()
             if (uris.isNotEmpty())
                 vm.importImages(if (single) uris.take(1) else uris) { imported ->
                     change(if (single) imported else (paths + imported).distinct())
@@ -447,6 +519,7 @@ private fun MediaEditor(
     Section(if (single) "图片（可选）" else "原始图片 · ${paths.size}", "复制原始文件，不默认压缩")
     OutlinedButton(
         onClick = {
+            vm.beginExternal()
             picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         },
         Modifier.fillMaxWidth(),

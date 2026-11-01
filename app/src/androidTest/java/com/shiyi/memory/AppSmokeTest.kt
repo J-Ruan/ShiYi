@@ -24,7 +24,19 @@ class AppSmokeTest {
             override fun evaluate() {
                 // Validate before launching the Activity, not concurrently with its first frame.
                 TestDeviceGuard.requireEmptyInstallation()
-                base.evaluate()
+                try {
+                    base.evaluate()
+                } finally {
+                    val app =
+                        InstrumentationRegistry.getInstrumentation()
+                            .targetContext
+                            .applicationContext as MemoryApplication
+                    runBlocking {
+                        app.repository.replace(com.shiyi.memory.data.Snapshot())
+                        app.settings.update { com.shiyi.memory.data.Settings() }
+                    }
+                    app.repository.mediaDir.listFiles().orEmpty().forEach { it.delete() }
+                }
             }
         }
     }
@@ -36,17 +48,21 @@ class AppSmokeTest {
             compose.onAllNodesWithContentDescription("添加").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithContentDescription("添加").performClick()
-        compose.onNodeWithText("添加回忆").performClick()
-        compose.onNodeWithText("标题 *").performTextInput("自动化测试的回忆")
+        compose.onNodeWithText("快速记录").performClick()
+        compose.onNodeWithText("标题").performTextInput("自动化测试的回忆")
         compose.onNodeWithText("回忆描述").performTextInput("草莓蛋糕，不要太甜")
         compose.onNodeWithText("保存", useUnmergedTree = true).performClick()
+        compose.waitUntil(120_000) {
+            compose.onAllNodesWithText("完成").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("完成").performClick()
         compose.waitUntil(120_000) {
             compose.onAllNodesWithText("自动化测试的回忆").fetchSemanticsNodes().isNotEmpty()
         }
         compose.onNodeWithText("自动化测试的回忆").performClick()
         compose.onNodeWithText("草莓蛋糕，不要太甜").assertExists()
         compose.onNodeWithContentDescription("编辑").performClick()
-        compose.onNodeWithText("标题 *").performTextReplacement("已编辑的回忆")
+        compose.onNodeWithText("标题").performTextReplacement("已编辑的回忆")
         compose.onNodeWithText("保存", useUnmergedTree = true).performClick()
         compose.waitUntil(120_000) {
             compose.onAllNodesWithText("已编辑的回忆").fetchSemanticsNodes().isNotEmpty()
@@ -56,6 +72,11 @@ class AppSmokeTest {
         compose.waitUntil(120_000) {
             compose.onAllNodesWithContentDescription("添加").fetchSemanticsNodes().isNotEmpty()
         }
+        compose.onAllNodesWithText("我的").onLast().performClick()
+        compose.onNodeWithText("回收站").performClick()
+        compose.onNodeWithText("已编辑的回忆").assertExists()
+        compose.onNodeWithText("恢复").performClick()
+        compose.onNodeWithContentDescription("返回").performClick()
         listOf("回忆", "TA 的档案", "我的", "首页").forEach { tab ->
             compose.onAllNodesWithText(tab).onLast().performClick()
             compose.waitForIdle()
@@ -98,8 +119,8 @@ class AppSmokeTest {
         runBlocking { app.settings.update { it.copy(theme = "system") } }
         compose.onAllNodesWithText("首页").onLast().performClick()
         compose.onNodeWithContentDescription("添加").performClick()
-        compose.onNodeWithText("添加回忆").performClick()
-        compose.onNodeWithText("标题 *").performTextInput("旋转后保留的草稿")
+        compose.onNodeWithText("快速记录").performClick()
+        compose.onNodeWithText("标题").performTextInput("旋转后保留的草稿")
         compose.activityRule.scenario.recreate()
         compose.waitUntil(120_000) {
             compose.onAllNodesWithText("旋转后保留的草稿").fetchSemanticsNodes().isNotEmpty()
@@ -127,7 +148,7 @@ class AppSmokeTest {
             }
             compose.waitForIdle()
             compose.onNodeWithContentDescription("添加").performClick()
-            compose.onNodeWithText("留下一点，关于我们").assertExists()
+            compose.onNodeWithText("快速记录").assertExists()
             compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
             compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
             compose.waitUntil(120_000) {
@@ -190,5 +211,98 @@ class AppSmokeTest {
             runBlocking { app.repository.delete("memory", memory.id) }
             paths.forEach { app.repository.file(it).delete() }
         }
+    }
+
+    @Test
+    fun pickerCancellationKeepsDraftAndDoesNotPromptAgain() {
+        compose.waitUntil(120_000) {
+            compose.onAllNodesWithContentDescription("添加").fetchSemanticsNodes().isNotEmpty()
+        }
+        val app = compose.activity.application as MemoryApplication
+        val vm =
+            androidx.lifecycle
+                .ViewModelProvider(compose.activity)[com.shiyi.memory.ui.AppViewModel::class.java]
+        val salt = com.shiyi.memory.domain.Crypto.salt()
+        compose.runOnUiThread { vm.unlocked.value = true }
+        runBlocking {
+            app.settings.update {
+                it.copy(
+                    pinSalt = salt,
+                    pinHash = com.shiyi.memory.domain.Crypto.hashPin("123456".toCharArray(), salt),
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("添加").performClick()
+        compose.onNodeWithText("快速记录").performClick()
+        compose.onNodeWithText("标题").performTextInput("选择器取消后保留")
+        compose.onNodeWithText("多选图片").performClick()
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        compose.waitUntil(30_000) {
+            automation.rootInActiveWindow?.packageName?.toString()?.let { it != app.packageName } ==
+                true
+        }
+        automation.performGlobalAction(
+            android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
+        )
+        compose.waitUntil(30_000) {
+            compose.onAllNodesWithText("选择器取消后保留").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("数字密码").assertDoesNotExist()
+        compose.onNodeWithText("选择器取消后保留").assertExists()
+    }
+
+    @Test
+    fun systemShareMultipleCopiesOriginalsAndDeduplicatesUris() {
+        compose.waitUntil(120_000) {
+            compose.onAllNodesWithContentDescription("添加").fetchSemanticsNodes().isNotEmpty()
+        }
+        val app = compose.activity.application as MemoryApplication
+        val folder = File(app.cacheDir, "exports").apply { mkdirs() }
+        val source = File(folder, "share-generated.png")
+        val bitmap = Bitmap.createBitmap(120, 80, Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(android.graphics.Color.CYAN)
+        source.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        val uri =
+            androidx.core.content.FileProvider.getUriForFile(
+                app,
+                "${app.packageName}.files",
+                source,
+            )
+        val intent =
+            android.content
+                .Intent(app, MainActivity::class.java)
+                .setAction(android.content.Intent.ACTION_SEND_MULTIPLE)
+                .setType("image/png")
+                .putParcelableArrayListExtra(
+                    android.content.Intent.EXTRA_STREAM,
+                    arrayListOf(uri, uri),
+                )
+                .addFlags(
+                    android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+        compose.runOnUiThread { compose.activity.startActivity(intent) }
+        compose.waitUntil(120_000) {
+            compose.onAllNodesWithText("标题").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("标题").performTextInput("系统分享的合成图片")
+        compose.onNodeWithText("保存", useUnmergedTree = true).performClick()
+        compose.waitUntil(120_000) {
+            compose.onAllNodesWithText("完成").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("完成").performClick()
+        val s = runBlocking { app.repository.snapshot() }
+        org.junit.Assert.assertEquals("系统分享的合成图片", s.memories.single().title)
+        org.junit.Assert.assertEquals(1, s.media.size)
+        org.junit.Assert.assertEquals(
+            com.shiyi.memory.domain.Crypto.sha256(source),
+            app.repository.images.withOriginal(s.media.single().path) {
+                com.shiyi.memory.domain.Crypto.sha256(it)
+            },
+        )
+        val service = com.shiyi.memory.platform.ShareImport(app, app.repository)
+        org.junit.Assert.assertNull(service.pending())
+        source.delete()
     }
 }

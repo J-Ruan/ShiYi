@@ -20,7 +20,7 @@ data class PartnerProfile(
 )
 
 @Serializable
-@Entity(indices = [Index("date"), Index("createdAt")])
+@Entity(indices = [Index("date"), Index("createdAt"), Index("deletedAt")])
 data class Memory(
     @PrimaryKey val id: String = newId(),
     val type: String = "瞬间记录",
@@ -41,6 +41,7 @@ data class Memory(
     val coverPath: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    val deletedAt: Long? = null,
 )
 
 @Serializable
@@ -256,8 +257,15 @@ data class Snapshot(
             .filter { it.isNotEmpty() }
             .toSet()
 
-    fun tagsFor(id: String) =
+    val activeMemories
+        get() = memories.filter { it.deletedAt == null }
+
+    private val tagNames by lazy { tags.associate { it.id to it.name } }
+    private val tagsByMemory by lazy {
         tagRefs
-            .filter { it.memoryId == id }
-            .mapNotNull { r -> tags.find { it.id == r.tagId }?.name }
+            .groupBy { it.memoryId }
+            .mapValues { (_, refs) -> refs.mapNotNull { tagNames[it.tagId] } }
+    }
+
+    fun tagsFor(id: String): List<String> = tagsByMemory[id].orEmpty()
 }

@@ -40,12 +40,6 @@ fun Header(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
             )
-            if (subtitle.isNotBlank())
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
         }
         actions()
     }
@@ -59,35 +53,20 @@ fun Section(title: String, subtitle: String = "", action: (@Composable () -> Uni
     ) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Medium)
-            if (subtitle.isNotBlank())
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
         }
         action?.invoke()
     }
 }
 
 @Composable
-fun Empty(title: String = "这里，等待一段回忆", detail: String = "用右下角的「＋」，留下值得珍藏的瞬间。") {
+fun Empty(title: String = "还没有回忆", detail: String = "") {
     Column(
         Modifier.fillMaxWidth().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(
-            Icons.Outlined.AutoAwesome,
-            null,
-            Modifier.size(30.dp),
-            tint = MaterialTheme.colorScheme.secondary,
-        )
-        Spacer(Modifier.height(12.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(6.dp))
         Text(
-            detail,
-            style = MaterialTheme.typography.bodyMedium,
+            title,
+            style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
@@ -97,14 +76,15 @@ fun Empty(title: String = "这里，等待一段回忆", detail: String = "用�
 fun Photo(path: String, vm: AppViewModel, modifier: Modifier = Modifier, crop: Boolean = true) {
     Box(
         modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Outlined.Image, "图片占位", tint = MaterialTheme.colorScheme.onSurfaceVariant)
         if (path.isNotBlank())
             AsyncImage(
-                model = vm.repo.file(path),
+                model = com.shiyi.memory.platform.EncryptedImage(path),
+                imageLoader = vm.app.imageLoader,
                 contentDescription = "收藏的原始图片",
                 contentScale = if (crop) ContentScale.Crop else ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
@@ -124,41 +104,23 @@ fun MemoryCard(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(14.dp),
     ) {
         if (memory.coverPath.isNotBlank())
             Photo(memory.coverPath, vm, Modifier.fillMaxWidth().height(180.dp))
         Column(Modifier.padding(16.dp)) {
             Text(
-                "${memory.type}  ·  ${memory.date}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                (if (memory.pinned) "置顶 · " else "") +
-                    memory.title +
-                    if (memory.favorite) "  ☆" else "",
+                memory.title,
                 style = MaterialTheme.typography.titleMedium,
                 maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
             )
-            if (memory.description.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    memory.description,
-                    maxLines = 3,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            val tags = snapshot.tagsFor(memory.id)
-            if (tags.isNotEmpty())
-                Text(
-                    tags.take(4).joinToString("  ") { "#$it" },
-                    Modifier.padding(top = 8.dp),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
+            Text(
+                memory.date,
+                Modifier.padding(top = 6.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -168,7 +130,7 @@ fun RecordCard(title: String, detail: String, onClick: () -> Unit, trailing: Str
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -178,7 +140,7 @@ fun RecordCard(title: String, detail: String, onClick: () -> Unit, trailing: Str
                     Text(
                         detail,
                         Modifier.padding(top = 5.dp),
-                        maxLines = 3,
+                        maxLines = 1,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -276,7 +238,7 @@ fun DateField(label: String, value: String, change: (String) -> Unit, optional: 
             value,
             change,
             Modifier.weight(1f).padding(vertical = 5.dp),
-            label = { Text("$label · YYYY-MM-DD${if (optional) "（可选）" else ""}") },
+            label = { Text(label) },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
         )

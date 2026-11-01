@@ -91,6 +91,9 @@ class ReminderReceiver : BroadcastReceiver() {
                     if (intent.action == "com.shiyi.memory.REMIND") Reminders.notifyIfDue(app)
                     Reminders.schedule(app)
                 }
+            } catch (_: Exception) {
+                // Leave all records untouched when credentials or storage are temporarily
+                // unavailable.
             } finally {
                 result.finish()
             }

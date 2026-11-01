@@ -1,100 +1,89 @@
-# 拾忆 · Memory
+# 拾忆 ShiYi
 
-一个原生 Android 私人回忆收藏馆。把照片、聊天截图、日常瞬间，以及关于 TA 的细节，认真保存在自己的手机里。
+完全离线的 Android 私人回忆收藏馆。保存照片、聊天截图和手写记录，整理关于 TA 的细节、纪念日与心愿。
 
-Android 8.0（API 26）及以上；单一恋人档案。**完全离线，无账号、服务器、AI、OCR、广告、分析 SDK、会员或云同步。**
+**1.1.0 开发候选** · Android 8.0+（API 26）· `com.shiyi.memory` · MIT
+
+> 正式发行须通过全部测试与正式签名验证。当前交付状态及未执行项目见 [验证记录](docs/TESTING.md)。未满足条件前不会创建 v1.1.0 稳定版。
+
+[GitHub Releases](https://github.com/J-Ruan/ShiYi/releases) · [签名与发布配置](docs/RELEASE.md) · [更新记录](CHANGELOG.md)
 
 ## 功能
 
-- **首页**：双方昵称、头像、相识天数、最近回忆、往年今日、随机回忆、TA 的最近记录、未来 90 天纪念日、快捷添加。
-- **回忆**：瞬间 / 聊天 / 事件 / 文字四种类型；增删改查、多张原图、调整顺序、封面、日期与可选时间、地点、心情、分类、关键词、标签、收藏与置顶。
-- **聊天收藏**：手动填写摘录、背景、理由与感受；截图仅作为原始图片保存，不识别文字。
-- **浏览**：瀑布流、网格、按年月分组的时间轴；日期 / 添加时间排序；类型、分类、标签、收藏与置顶筛选；多图全屏滑动、缩放和系统图片分享。
-- **TA 的档案**：六大预设分类、自定义分类、重要程度、置顶、搜索及与回忆的双向关联。删除关联不删除原记录。
-- **心愿**：六类愿望、图片、计划日期、备注、三种状态、关联已实现的回忆。
-- **合集与日历**：合集引用已有回忆；月视图标记回忆和纪念日，切换年月、回到今天、查阅所选日期。
-- **纪念日**：每年重复或一次性、提前提醒天数、备注与回忆关联。本地非精确闹钟，重启 / 日期 / 时区变化后重新调度。
-- **中文全局搜索**：子字符串匹配手动文字、聊天摘录、档案、心愿与标签；模块、分类、日期范围筛选。
-- **统计**：全部、月度、年度的回忆 / 照片 / 各类型 / 档案 / 心愿数量、实现数量、分类分布与每月记录数。添加统计按创建时间；实现统计按实现时间。
-- **PDF 回忆册**：全部、年月、日期范围或指定合集；自定义标题、封面、图片、文字和日期地点选项；本地生成、多页排版、长截图按页宽分段、中文与比例保持，通过系统文件选择器保存。
-- **完整加密备份与恢复**：结构化 JSON、全部原图、关联和设置；PBKDF2 + 分块 AES-256-GCM；先校验并展示数量，再确认覆盖；事务恢复。详见 [备份格式](docs/BACKUP_FORMAT.md)。
-- **隐私设置**：浅色 / 深色 / 系统主题，数字密码应用锁、生物识别、后台立即锁定、主动开启通知、图片清理与删除全部本地数据。
+- 快速记录：原图、标题、日期和可选描述；其他字段放在“更多细节”，保存后可继续记录。
+- Android 分享：接收单张或多张图片，校验后复制到私有存储；重复 URI 去重，完成导入的分享草稿可在进程重启后继续。
+- 回忆：瞬间、聊天、事件和文字；多图顺序与封面、收藏、置顶、标签、分类、相关档案及回忆。聊天仅手动摘录，无 OCR。
+- 回收站：删除后保留 30 天、短时撤销、恢复、永久删除与清空；共用图片不会被提前删除。
+- 浏览：时间轴 / 网格 / 瀑布流；日期、标签、类型、收藏、分类筛选；发生时间、最近添加和最早添加排序。日历跨月保持合理选中日期。
+- TA 的档案：头像、昵称、相识日、六大细节分类、重要程度和双向回忆关联；心愿、纪念日、合集及自定义分类。
+- 中文搜索、月度 / 年度统计与回顾；PDF 封面、目录、月份分隔页、中文长文换页、长截图分区和原比例图片。
+- 存储管理：图片数量、分类空间、最近备份、未引用文件与可释放空间；确认前预览，清理时重新检查引用。
+- 加密备份：全部记录、回收站、原始图片及关系；密码验证、完整性校验、恢复预览与事务回滚；兼容 1.0.0 备份。
 
-所有首次安装页面为空，不预装虚构回忆或个人资料。各模块的新增入口、空状态、表单校验、保存反馈和删除确认均由真实数据驱动。
+不预装虚构个人资料。应用没有 INTERNET 或广泛相册权限，无账号、服务器、云同步、广告、追踪、AI 或 OCR。
 
-## 界面
+## 设计
 
-奶油白背景，柔和粉与雾紫点缀，系统中文字体和统一圆角。四个主页面：首页 / 回忆 / TA 的档案 / 我的。右下角「＋」提供全局添加。
+保留奶油白、柔和粉与雾紫。统一 26sp 页面标题、20sp 模块标题、17sp 卡片标题及 14–16sp 正文；移除解释性副标题，卡片突出图片、标题和日期，高级筛选与字段按需展开。支持浅色 / 深色 / 跟随系统。
 
-以下为真实 API 30 模拟器的空数据界面：
+自动化截图只使用合成文字和生成图形。截图范围、实际结果和检查说明见 [测试记录](docs/TESTING.md)；旧版图片不作为 1.1.0 验收证据。
 
-| 首页 | 回忆 | TA 的档案 | 深色模式 |
-|---|---|---|---|
-| ![首页](docs/screenshots/home.png) | ![回忆](docs/screenshots/memories.png) | ![TA 的档案](docs/screenshots/profile.png) | ![深色模式](docs/screenshots/dark.png) |
+## 数据与隐私
 
-实际测试结果见 [验证记录](docs/TESTING.md)。应用默认启用 Android 安全窗口，防止系统截屏和任务缩略图泄露；测试截图仅在测试代码中针对空数据临时关闭保护。
+1.1.0 使用 SQLCipher 加密本地数据库，AES-256-GCM 分块加密图片，随机密钥由 Android Keystore 保护，与应用锁 PIN 独立。图片保留原始编码字节与质量，不主动压缩。应用锁支持 PIN / 生物识别，安全窗口保护系统截图和任务缩略图；通知只显示通用提醒。
 
-## 技术架构
+旧数据先复制迁移，验证记录、外键与原图 SHA-256 后才清理旧明文。失败会保留原数据并显示恢复入口，不能用清空数据库解决迁移。设备已被攻破、密钥丢失或卸载时，本地加密不能代替可靠备份。
 
-Kotlin 2.1.20、Jetpack Compose / Material 3、MVVM + Repository、Room 2.7.1 / SQLite、DataStore、Coil、Navigation Compose、Coroutines / Flow、AlarmManager、Android PdfDocument、AndroidX Photo Picker。
+在“我的 → 备份与恢复”设置独立备份密码，导出 `.shiyi` 并另存到可信位置。恢复前先完整校验和核对数量；恢复覆盖记录，只迁移主题，不覆盖本机 PIN、生物识别、通知或备份位置。新手机通过备份密码解密，再用自己的本地密钥加密。密码无法找回。
 
-```text
-app/src/main/java/com/shiyi/memory/
-├── data/       Room 实体、DAO、迁移、Repository、DataStore
-├── domain/     日期、中文检索、统计、备份结构校验、加密
-├── platform/   原生 PDF、备份恢复、系统闹钟与通知
-└── ui/         Compose 页面与 ViewModel
-```
+图片解码、分享和 PDF 使用受控私有临时明文，操作后清理。主动分享的临时文件最多保留 10 分钟，供接收应用读取。Android 自动云备份与设备迁移已禁用。系统文件选择器中用户主动选择的云盘由该提供方处理，拾忆不会自动上传。
 
-[数据库设计与一致性](docs/DATABASE.md) · [备份格式](docs/BACKUP_FORMAT.md) · [验证记录](docs/TESTING.md)
+[数据库与迁移](docs/DATABASE.md) · [备份格式](docs/BACKUP_FORMAT.md) · [安全说明](SECURITY.md)
 
-## 安装 APK
+## 安装与升级
 
-直接下载：[拾忆 1.0.0 APK（debug 签名）](https://github.com/J-Ruan/ShiYi/raw/refs/heads/main/downloads/ShiYi-1.0.0-debug.apk)。安装包及 [SHA-256 校验文件](downloads/SHA256SUMS) 已放在仓库的 `downloads/` 目录。当前使用仓库文件分发，尚未建立 GitHub Release 附件。也可按下节自行构建。
+正式版仅通过 [GitHub Release 附件](https://github.com/J-Ruan/ShiYi/releases) 分发，预期文件名 `ShiYi-1.1.0-release.apk`，并提供 `SHA256SUMS.txt`。**没有完成正式签名与发布时，该版本下载入口不会存在。**
 
-允许系统安装所选文件来源的应用，然后打开 APK。包名 `com.shiyi.memory`，最低 API 26。发布的 `app-debug.apk` 使用 **Gradle 默认 debug 签名**，不是正式发行签名。不要卸载后再尝试更新以解决签名冲突，卸载会丢失本地数据；请先导出加密备份。没有在仓库中保存签名私钥。
+此前 `downloads/` 中的 1.0.0 是 Debug 签名测试版，不能当作正式版。本次不再向 Git 仓库添加 APK。
 
-## Android Studio / 命令行构建
+从 Debug 转正式版：
 
-1. 安装支持 AGP 8.9 的 Android Studio，选择完整 JDK 17 或 21（需要 `javac`）。
-2. 安装 Android SDK Platform 35、Build Tools 35.0.0 和 Platform Tools。
-3. 打开本仓库，配置 SDK（Studio 生成的 `local.properties` 不提交）。
-4. 执行：
+1. 在旧版导出加密备份，输入原密码验证备份可读，复制到可信位置。
+2. 确认备份完整后卸载旧 Debug 版；卸载会删除应用内部数据。
+3. 下载并核对正式版校验值，安装正式签名 APK。
+4. 恢复 `.shiyi`，重新设置本机应用锁与通知。
+
+Debug 和正式证书不同，不能直接覆盖安装。已经安装正式版的后续升级必须继续使用原发行密钥。
+
+## 构建与测试
+
+Kotlin 2.1.20、Compose BOM 2025.04.01 / Material 3、Room 2.7.1、SQLCipher Android 4.10.0、DataStore、Coil、Coroutines / Flow。AGP 8.9.3，Gradle 8.13，compile / target SDK 35，JDK 21。
 
 ```bash
-./gradlew clean testDebugUnitTest lint assembleDebug
+./gradlew clean testDebugUnitTest lint assembleDebug assembleRelease
 ```
 
-Gradle Wrapper 固定为 8.13，并验证发行文件的 SHA-256。Maven 依赖来自 Google 和 Maven Central，不关闭 TLS 或校验。首次构建需下载开发依赖；**安装后的应用运行无需网络**。
+配置 [正式签名环境变量](docs/RELEASE.md) 后产出 `app/build/outputs/apk/release/app-release.apk`；没有签名时产出 `app-release-unsigned.apk`，只能用于工程检查，不能作为正式安装包。Debug 产物在 `app/build/outputs/apk/debug/app-debug.apk`。
 
-产物：`app/build/outputs/apk/debug/app-debug.apk`。
-
-安装与启动可以使用日常设备。**设备测试仅允许在空数据模拟器或专用测试设备执行**，检测到已有资料、原图或个人设置时会拒绝运行，避免清空用例触碰日常数据。
-
-连接测试设备 / 启动模拟器后：
+设备测试**只在全新模拟器或专用空安装运行**：
 
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n com.shiyi.memory/.MainActivity
 ./gradlew connectedDebugAndroidTest
 ```
 
-云环境可执行 `bash scripts/cloud-setup.sh`；它在 `/workspace/tooling` 准备经校验的 JDK 与 Android SDK，并执行测试、Lint 和构建。此脚本专用于本云环境目录，不适用于直接覆盖本机 JDK 配置。普通开发请使用上面的 Android Studio 流程。
+检测到已有资料、媒体或个人设置时测试会拒绝运行，不得移除保护。JVM 使用隔离 fixture，真实 SQLCipher、Keystore、迁移、原图和 PDF 由设备测试验证。云环境可用 `bash scripts/cloud-setup.sh` 准备工具与构建。CI 不安装废弃 SDK `tools` 包。
 
-## 使用和数据安全
+## 常见问题
 
-首次进入 TA 的档案，设置昵称、头像及可选相识日期；随后从「＋」添加回忆和档案细节。所有图片从系统选择器选择，复制到应用私有目录，保留原始字节、原始质量与元数据，不申请整个相册的权限。原相册文件不会因应用内删除而删除。
+- **忘记 PIN？** PIN 与数据密钥不同；不要直接卸载或清除数据。备份密码不能找回，请妥善保存。
+- **迁移失败？** 旧文件会保留；检查可用空间后在错误页重试，不清除数据。
+- **设置损坏？** 错误页可重试或明确确认恢复默认设置，不清空回忆数据库。
+- **提醒晚到？** 本地非精确闹钟受系统省电与后台管理影响，可在设备设置允许后台运行。
+- **清理会删掉回收站或共用图片吗？** 不会；清理重新核对全部引用，并保护分享草稿与最近导入图片。
+- **换手机？** 使用加密备份；不要复制旧手机 Keystore 文件。
 
-在「我的 → 备份与恢复」设置独立备份密码，选择本地文件位置导出 `.shiyi`。备份包含图片，不只是数据库。恢复时选择备份、输入原密码、等待完整性验证、核对数量，再确认覆盖。恢复保留当前设备的应用锁和通知授权，以免改变本机安全配置。不要在没有验证备份可读的情况下删除原数据。
+## English
 
-应用锁的密码使用独立随机盐和 PBKDF2 哈希，不存明文；支持设备已录入的系统生物识别。**应用锁不等于数据库或媒体加密**：内部数据依靠 Android 私有沙盒保护，无法对已获取系统权限的攻击作保证。导出备份始终加密；备份密码无法找回，请使用强密码并自行妥善保存。
+ShiYi is a fully offline Android memory journal for original photos, manually saved conversations, personal details, anniversaries, wishes and collections. Version 1.1.0 introduces a quieter Compose interface, quick capture, Android sharing, a 30-day recycle bin, reviewed storage cleanup, SQLCipher and authenticated image encryption. No account, server, Internet permission, AI, OCR, ads or tracking. Android 8.0+. Signed production builds are distributed through GitHub Releases only after validation; see the release guide for durable signing and migration from older debug builds.
 
-应用没有 INTERNET 权限，关闭 Android 自动云备份和设备迁移，不上传数据。系统文件选择器可能提供你安装的云盘；选择那个位置属于用户自己的显式导出行为，应用不会自动同步。
-
-通知仅在主动开启时申请 Android 13+ 权限；内容是通用提示，不显示私人聊天或纪念日名称。不申请精确闹钟特殊权限。荣耀设备的电池管理可能延迟提醒，必要时在系统设置允许后台运行。通知并非医疗或安全关键提醒工具。
-
-卸载应用会删除私有数据。彻底删除功能会清除应用内部记录、媒体与缓存，已导出的外部备份需自行删除。闪存不能保证物理取证级擦除。
-
-## 开源协议
-
-[MIT](LICENSE)。不提交个人照片、聊天、数据库、备份密码、访问令牌或签名密钥。自动化测试仅使用生成图片与合成文字。
+[Contributing](CONTRIBUTING.md) · [Third-party licenses](docs/THIRD_PARTY.md) · [MIT](LICENSE)

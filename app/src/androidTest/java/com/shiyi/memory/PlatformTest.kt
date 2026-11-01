@@ -32,12 +32,18 @@ class PlatformTest {
         }
         context.deleteDatabase("platform-test.db")
         db = MemoryDatabase.open(context, "platform-test.db")
-        repo = MemoryRepository(context, db)
+        repo =
+            MemoryRepository(
+                context,
+                db,
+                ImageStorage(context, File(context.filesDir, "platform-test-images")),
+            )
     }
 
     @After
     fun close() {
         if (::db.isInitialized) {
+            repo.mediaDir.deleteRecursively()
             db.close()
             context.deleteDatabase("platform-test.db")
         }
@@ -66,10 +72,15 @@ class PlatformTest {
             androidx.core.content.FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.files",
-                repo.file(paths.first()),
+                repo.images.temporary(paths.first(), true),
             )
         assertEquals("image/png", context.contentResolver.getType(shareUri))
-        paths.forEach { assertEquals(Crypto.sha256(source), Crypto.sha256(repo.file(it))) }
+        paths.forEach {
+            assertEquals(
+                Crypto.sha256(source),
+                repo.images.withOriginal(it) { f -> Crypto.sha256(f) },
+            )
+        }
         repo.saveMemory(
             Memory(id = "m", title = "多图聊天", type = "聊天收藏", date = "2026-10-31"),
             paths,
@@ -205,7 +216,7 @@ class PlatformTest {
             PdfRenderer(ParcelFileDescriptor.open(output, ParcelFileDescriptor.MODE_READ_ONLY))
                 .use { renderer ->
                     assertTrue(
-                        "Long screenshot must span several full-width pages; pages=${renderer.pageCount}, orientation=${androidx.exifinterface.media.ExifInterface(repo.file(image).path).getAttributeInt(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, 1)}",
+                        "Long screenshot must span several full-width pages; pages=${renderer.pageCount}, encrypted media",
                         renderer.pageCount >= 5,
                     )
                     fun colorAtCenter(pageIndex: Int): Int {
@@ -224,8 +235,13 @@ class PlatformTest {
                             rendered.recycle()
                         }
                     }
-                    val first = colorAtCenter(1)
-                    val last = colorAtCenter(renderer.pageCount - 1)
+                    val colors = (0 until renderer.pageCount).map { colorAtCenter(it) }
+                    val first =
+                        colors.firstOrNull {
+                            android.graphics.Color.red(it) > 200 &&
+                                android.graphics.Color.blue(it) < 50
+                        } ?: 0
+                    val last = colors.last()
                     assertTrue(
                         "First screenshot region must be visible",
                         android.graphics.Color.red(first) > 200 &&
@@ -301,6 +317,7 @@ class PlatformTest {
             )
         } finally {
             app.repository.delete("memory", record.id)
+            app.repository.permanentDelete(record.id)
         }
     }
 }

@@ -7,7 +7,19 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 
-private val Context.settingsStore by preferencesDataStore("settings")
+private object SettingsRecovery {
+    val allowReset = java.util.concurrent.atomic.AtomicBoolean(false)
+}
+
+private val Context.settingsStore by
+    preferencesDataStore(
+        "settings",
+        corruptionHandler =
+            androidx.datastore.core.handlers.ReplaceFileCorruptionHandler { failure ->
+                if (SettingsRecovery.allowReset.compareAndSet(true, false)) emptyPreferences()
+                else throw failure
+            },
+    )
 
 @Serializable
 data class Settings(
@@ -42,6 +54,15 @@ class SettingsRepository(context: Context) {
         }
 
     suspend fun read() = flow.first()
+
+    suspend fun resetDamagedSettings() {
+        SettingsRecovery.allowReset.set(true)
+        try {
+            store.updateData { emptyPreferences() }
+        } finally {
+            SettingsRecovery.allowReset.set(false)
+        }
+    }
 
     suspend fun update(transform: (Settings) -> Settings) {
         store.edit { p ->

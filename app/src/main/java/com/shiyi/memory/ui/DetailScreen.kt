@@ -34,7 +34,7 @@ fun DetailScreen(
     val s by vm.data.collectAsStateWithLifecycle()
     var delete by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val m = s.memories.find { it.id == id }
+    val m = s.activeMemories.find { it.id == id }
     val e = s.entries.find { it.id == id }
     val w = s.wishes.find { it.id == id }
     val a = s.anniversaries.find { it.id == id }
@@ -77,7 +77,7 @@ fun DetailScreen(
                 @Composable
                 fun linked(ids: List<String>) {
                     ids.distinct()
-                        .mapNotNull { target -> s.memories.find { it.id == target } }
+                        .mapNotNull { target -> s.activeMemories.find { it.id == target } }
                         .forEach { RecordCard(it.title, it.date, { go("detail/memory/${it.id}") }) }
                 }
                 when (kind) {
@@ -93,7 +93,7 @@ fun DetailScreen(
                                 TextButton(
                                     onClick = {
                                         vm.action(if (m.favorite) "已取消收藏" else "已收藏") {
-                                            vm.repo.dao.put(
+                                            vm.repo.updateMemory(
                                                 m.copy(
                                                     favorite = !m.favorite,
                                                     updatedAt = System.currentTimeMillis(),
@@ -112,49 +112,53 @@ fun DetailScreen(
                                 if (s.media.any { it.memoryId == id })
                                     TextButton(
                                         onClick = {
-                                            runCatching {
-                                                    val uris =
-                                                        ArrayList(
-                                                            s.media
-                                                                .filter { it.memoryId == id }
-                                                                .sortedBy { it.position }
-                                                                .map {
-                                                                    FileProvider.getUriForFile(
-                                                                        context,
-                                                                        "${context.packageName}.files",
-                                                                        vm.repo.file(it.path),
-                                                                    )
-                                                                }
-                                                        )
-                                                    val intent =
-                                                        Intent(Intent.ACTION_SEND_MULTIPLE)
-                                                            .setType("image/*")
-                                                            .putParcelableArrayListExtra(
-                                                                Intent.EXTRA_STREAM,
-                                                                uris,
-                                                            )
-                                                            .addFlags(
-                                                                Intent
-                                                                    .FLAG_GRANT_READ_URI_PERMISSION
-                                                            )
-                                                    intent.clipData =
-                                                        ClipData.newUri(
-                                                                context.contentResolver,
-                                                                "回忆图片",
-                                                                uris.first(),
-                                                            )
-                                                            .apply {
-                                                                uris.drop(1).forEach {
-                                                                    addItem(ClipData.Item(it))
-                                                                }
+                                            vm.action("") {
+                                                val uris =
+                                                    ArrayList(
+                                                        s.media
+                                                            .filter { it.memoryId == id }
+                                                            .sortedBy { it.position }
+                                                            .map {
+                                                                FileProvider.getUriForFile(
+                                                                    context,
+                                                                    "${context.packageName}.files",
+                                                                    vm.repo.images.temporary(
+                                                                        it.path,
+                                                                        true,
+                                                                    ),
+                                                                )
                                                             }
+                                                    )
+                                                val intent =
+                                                    Intent(Intent.ACTION_SEND_MULTIPLE)
+                                                        .setType("image/*")
+                                                        .putParcelableArrayListExtra(
+                                                            Intent.EXTRA_STREAM,
+                                                            uris,
+                                                        )
+                                                        .addFlags(
+                                                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                                        )
+                                                intent.clipData =
+                                                    ClipData.newUri(
+                                                            context.contentResolver,
+                                                            "图片",
+                                                            uris.first(),
+                                                        )
+                                                        .apply {
+                                                            uris.drop(1).forEach {
+                                                                addItem(ClipData.Item(it))
+                                                            }
+                                                        }
+                                                kotlinx.coroutines.withContext(
+                                                    kotlinx.coroutines.Dispatchers.Main
+                                                ) {
+                                                    vm.beginSharing()
                                                     context.startActivity(
-                                                        Intent.createChooser(intent, "分享原始图片")
+                                                        Intent.createChooser(intent, "分享图片")
                                                     )
                                                 }
-                                                .onFailure {
-                                                    vm.error.value = "无法分享图片：${it.localizedMessage}"
-                                                }
+                                            }
                                         }
                                     ) {
                                         Icon(Icons.Outlined.Share, null)
@@ -192,16 +196,16 @@ fun DetailScreen(
                                     .filter(String::isNotBlank)
                                     .joinToString(" · "),
                             )
-                            Section("关联的 TA 档案")
+                            if (s.profileRefs.any { it.memoryId == id }) Section("关联档案")
                             val entries =
                                 s.profileRefs
                                     .filter { it.memoryId == id }
                                     .mapNotNull { ref -> s.entries.find { it.id == ref.profileId } }
-                            if (entries.isEmpty()) Text("暂无关联")
+
                             entries.forEach {
                                 RecordCard(it.title, it.category, { go("detail/entry/${it.id}") })
                             }
-                            Section("关联的其他回忆")
+                            if (s.links.any { it.fromId == id || it.toId == id }) Section("关联回忆")
                             linked(
                                 s.links
                                     .filter { it.fromId == id || it.toId == id }
@@ -269,7 +273,7 @@ fun DetailScreen(
                             Chips(wishStates, wishStates[w.status]) { state ->
                                 vm.action {
                                     val status = wishStates.indexOf(state)
-                                    vm.repo.dao.put(
+                                    vm.repo.updateWish(
                                         w.copy(
                                             status = status,
                                             updatedAt = System.currentTimeMillis(),
@@ -301,7 +305,9 @@ fun DetailScreen(
                             val memories =
                                 s.collectionRefs
                                     .filter { it.collectionId == id }
-                                    .mapNotNull { ref -> s.memories.find { it.id == ref.memoryId } }
+                                    .mapNotNull { ref ->
+                                        s.activeMemories.find { it.id == ref.memoryId }
+                                    }
                             if (memories.isEmpty()) Empty("合集还是空的", "编辑合集，添加已有回忆。")
                             else
                                 memories.forEach {
@@ -314,9 +320,14 @@ fun DetailScreen(
             }
     }
     if (delete)
-        ConfirmDelete("删除这条记录？", dismiss = { delete = false }) {
+        ConfirmDelete(
+            "删除这条记录？",
+            if (kind == "memory") "移入回收站，保留 30 天。" else "删除后无法恢复，其他记录会保留。",
+            dismiss = { delete = false },
+        ) {
             delete = false
-            vm.action("已删除", back) { vm.repo.delete(kind, id) }
+            if (kind == "memory") vm.deleteMemory(id, back)
+            else vm.action("已删除", back) { vm.repo.delete(kind, id) }
         }
 }
 

@@ -34,7 +34,7 @@ fun dueReminder(a: Anniversary, day: LocalDate): Boolean {
 }
 
 fun onThisDay(s: Snapshot, date: LocalDate) =
-    s.memories.filter {
+    s.activeMemories.filter {
         val d = LocalDate.parse(it.date)
         d.year < date.year && MonthDay.from(d) == MonthDay.from(date)
     }
@@ -60,7 +60,7 @@ fun search(
     to: String = "",
 ): List<SearchResult> {
     val records =
-        s.memories.map {
+        s.activeMemories.map {
             SearchResult(
                 "回忆",
                 it.id,
@@ -133,7 +133,7 @@ fun statistics(s: Snapshot, year: Int? = null, month: Int? = null): Stats {
         val d = Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDate()
         return (year == null || d.year == year) && (month == null || d.monthValue == month)
     }
-    val memories = s.memories.filter { accepts(it.createdAt) }
+    val memories = s.activeMemories.filter { accepts(it.createdAt) }
     val ids = memories.map { it.id }.toSet()
     return Stats(
         memories.size,
@@ -146,7 +146,7 @@ fun statistics(s: Snapshot, year: Int? = null, month: Int? = null): Stats {
         s.wishes.count { it.status == 2 && it.completedAt?.let(::accepts) == true },
         s.collections.size,
         (1..12).map { m ->
-            s.memories.count {
+            s.activeMemories.count {
                 val d = Instant.ofEpochMilli(it.createdAt).atZone(ZoneId.systemDefault())
                 (year == null || d.year == year) && d.monthValue == m
             }

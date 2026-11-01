@@ -13,8 +13,8 @@ android {
         applicationId = "com.shiyi.memory"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildFeatures {
@@ -26,10 +26,28 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildTypes { release { isMinifyEnabled = false } }
+    val signingValues = listOf("ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD").map { System.getenv(it) }
+    signingConfigs {
+        if (signingValues.all { !it.isNullOrBlank() }) create("production") {
+            storeFile = file(signingValues[0]!!)
+            storePassword = signingValues[1]
+            keyAlias = signingValues[2]
+            keyPassword = signingValues[3]
+        }
+    }
+    buildTypes {
+        release {
+            isDebuggable = false
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("production")
+        }
+    }
     testOptions {
         unitTests.isIncludeAndroidResources = true
         unitTests.all { test ->
+            val testHome = layout.buildDirectory.dir("test-home").get().asFile
+            test.doFirst { testHome.mkdirs() }
+            test.systemProperty("user.home", testHome.absolutePath)
             listOf(
                     "http.proxyHost",
                     "http.proxyPort",
@@ -65,6 +83,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.9")
     implementation("androidx.room:room-runtime:2.7.1")
     implementation("androidx.room:room-ktx:2.7.1")
+    implementation("net.zetetic:sqlcipher-android:4.10.0")
     ksp("androidx.room:room-compiler:2.7.1")
     implementation("androidx.datastore:datastore-preferences:1.1.4")
     implementation("androidx.biometric:biometric:1.1.0")

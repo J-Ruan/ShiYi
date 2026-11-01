@@ -36,12 +36,7 @@ fun WishesScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
         val records = s.wishes.filter { filter == "全部" || wishStates[it.status] == filter }
         if (records.isEmpty()) item { Empty("还有什么想一起做的？", "记下想吃、想去、想看的小小愿望。") }
         items(records, key = { it.id }) { w ->
-            RecordCard(
-                w.title,
-                "${w.category}\n${w.description}",
-                { go("detail/wish/${w.id}") },
-                wishStates[w.status],
-            )
+            RecordCard(w.title, w.category, { go("detail/wish/${w.id}") }, wishStates[w.status])
         }
     }
 }
@@ -136,7 +131,7 @@ fun SearchScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
             items(records, key = { it.kind + it.id }) { r ->
                 RecordCard(
                     r.title,
-                    "${r.kind} · ${r.date}\n${r.description}",
+                    "${r.kind} · ${r.date}",
                     {
                         go(
                             "detail/${when (r.kind) { "回忆" -> "memory"
@@ -157,6 +152,11 @@ fun CalendarScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
     var selectedText by rememberSaveable { mutableStateOf(today().toString()) }
     val month = YearMonth.parse(monthText)
     val selected = LocalDate.parse(selectedText)
+    LaunchedEffect(monthText) {
+        if (YearMonth.from(selected) != month)
+            selectedText =
+                month.atDay(selected.dayOfMonth.coerceAtMost(month.lengthOfMonth())).toString()
+    }
     LazyColumn(contentPadding = PaddingValues(20.dp)) {
         item {
             Header("记忆日历", "● 回忆    ◇ 纪念日", back)
@@ -202,7 +202,7 @@ fun CalendarScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
                         ) {
                             if (day in 1..month.lengthOfMonth()) {
                                 val date = month.atDay(day)
-                                val hasMemory = s.memories.any { it.date == date.toString() }
+                                val hasMemory = s.activeMemories.any { it.date == date.toString() }
                                 val anniversary =
                                     s.anniversaries.any {
                                         if (it.annual)
@@ -250,7 +250,7 @@ fun CalendarScreen(vm: AppViewModel, go: (String) -> Unit, back: () -> Unit) {
         items(events, key = { "anniversary" + it.id }) {
             RecordCard(it.title, "纪念日", { go("detail/anniversary/${it.id}") })
         }
-        val records = s.memories.filter { it.date == selectedText }
+        val records = s.activeMemories.filter { it.date == selectedText }
         if (records.isEmpty()) item { Empty("这一天，还没有记录", "平凡的一天，也能成为珍贵的回忆。") }
         items(records, key = { it.id }) {
             MemoryCard(it, s, vm, { go("detail/memory/${it.id}") })

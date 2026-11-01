@@ -61,6 +61,7 @@ fun BackupScreen(vm: AppViewModel, back: () -> Unit) {
         rememberLauncherForActivityResult(
             ActivityResultContracts.CreateDocument("application/octet-stream")
         ) { uri ->
+            vm.endExternal()
             if (uri != null) {
                 val chars = password.toCharArray()
                 password = ""
@@ -70,6 +71,7 @@ fun BackupScreen(vm: AppViewModel, back: () -> Unit) {
         }
     val import =
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            vm.endExternal()
             if (uri != null) {
                 vm.inspectBackup(uri, password)
                 password = ""
@@ -78,10 +80,7 @@ fun BackupScreen(vm: AppViewModel, back: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Header("备份与恢复", back = back)
         Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp)) {
-            Text(
-                "完整备份 = JSON + 全部原始图片 + 设置及关联关系。ZIP 整体经 AES-256-GCM 加密，只能使用密码在拾忆内恢复，不是普通 ZIP。密码无法找回。",
-                style = MaterialTheme.typography.bodyMedium,
-            )
+            Text("包含全部记录、回收站与原图。备份已加密，密码无法找回。", style = MaterialTheme.typography.bodyMedium)
             Section("最近备份")
             Text(
                 if (s.lastBackup == 0L) "尚未创建备份"
@@ -106,27 +105,32 @@ fun BackupScreen(vm: AppViewModel, back: () -> Unit) {
                     onClick = {
                         if (password.length < 8) vm.error.value = "备份密码至少 8 位"
                         else if (password != confirmation) vm.error.value = "两次密码不一致"
-                        else export.launch("拾忆-${today()}.shiyi")
+                        else {
+                            vm.beginExternal()
+                            export.launch("拾忆-${today()}.shiyi")
+                        }
                     },
                     Modifier.fillMaxWidth(),
                 ) {
-                    Text("选择位置并导出加密备份")
+                    Text("导出加密备份")
                 }
             } else
                 Button(
                     onClick = {
                         if (password.isBlank()) vm.error.value = "请输入备份密码"
-                        else
+                        else {
+                            vm.beginExternal()
                             import.launch(
                                 arrayOf("application/octet-stream", "application/zip", "*/*")
                             )
+                        }
                     },
                     Modifier.fillMaxWidth(),
                 ) {
-                    Text("选择备份并验证完整性")
+                    Text("选择备份")
                 }
             Text(
-                "导出后请保存在你信任的位置；系统文件选择器中的云盘由你自行选择。应用不会自动上传数据。恢复会覆盖当前内容，建议先为当前数据另做备份。恢复保留本机应用锁与通知授权设置。",
+                "恢复将覆盖当前内容，请先备份。应用锁、通知及本机备份记录保持当前设备设置。",
                 Modifier.padding(top = 18.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -196,7 +200,7 @@ fun PdfScreen(vm: AppViewModel, back: () -> Unit) {
     var text by rememberSaveable { mutableStateOf(true) }
     var dates by rememberSaveable { mutableStateOf(true) }
     fun selected() =
-        s.memories.filter { m ->
+        s.activeMemories.filter { m ->
             when (scope) {
                 "指定年份" -> m.date.take(4) == year
                 "指定月份" -> m.date.take(7) == "$year-${month.padStart(2, '0')}"
@@ -210,6 +214,7 @@ fun PdfScreen(vm: AppViewModel, back: () -> Unit) {
         rememberLauncherForActivityResult(
             ActivityResultContracts.CreateDocument("application/pdf")
         ) { uri ->
+            vm.endExternal()
             if (uri != null) {
                 val records = selected()
                 val options = PdfOptions(title, cover, images, text, dates)
@@ -257,7 +262,7 @@ fun PdfScreen(vm: AppViewModel, back: () -> Unit) {
             Toggle("包含文字描述", text) { text = it }
             Toggle("包含日期与地点", dates) { dates = it }
             Text(
-                "${selected().size} 段回忆将导出。在手机本地生成，可通过系统文件选择器保存到设备或其他应用。",
+                "${selected().size} 段回忆",
                 Modifier.padding(vertical = 18.dp),
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -274,7 +279,10 @@ fun PdfScreen(vm: AppViewModel, back: () -> Unit) {
                                 }
                                 .isFailure || from > to) -> vm.error.value = "请选择有效日期范围"
                         selected().isEmpty() -> vm.error.value = "所选范围没有回忆"
-                        else -> launcher.launch("拾忆回忆册-${today()}.pdf")
+                        else -> {
+                            vm.beginExternal()
+                            launcher.launch("拾忆回忆册-${today()}.pdf")
+                        }
                     }
                 },
                 Modifier.fillMaxWidth(),
@@ -333,7 +341,7 @@ fun SettingsScreen(vm: AppViewModel, back: () -> Unit) {
             }
             Section("应用锁")
             Text(
-                "${if (s.pinHash.isBlank()) "未设置" else "已开启"} · 切换到后台后立即锁定。应用锁不会加密本地数据库或图片。",
+                "${if (s.pinHash.isBlank()) "未设置" else "已开启"} · 后台锁定",
                 style = MaterialTheme.typography.bodySmall,
             )
             OutlinedButton(
@@ -410,14 +418,6 @@ fun SettingsScreen(vm: AppViewModel, back: () -> Unit) {
                 Text("打开系统通知设置")
             }
             Section("数据管理")
-            OutlinedButton(
-                onClick = {
-                    vm.action("已清理未使用的图片（保留最近 24 小时导入的文件）") { vm.repo.cleanUnusedMedia() }
-                },
-                Modifier.fillMaxWidth(),
-            ) {
-                Text("清理未使用的图片")
-            }
             OutlinedButton(
                 onClick = {
                     erase = true
@@ -627,7 +627,9 @@ fun CategoriesScreen(vm: AppViewModel, back: () -> Unit) {
                         ) {
                             "分类已存在"
                         }
-                        vm.repo.dao.put(Category(editing.ifBlank { newId() }, scope, name.trim()))
+                        vm.repo.updateCategory(
+                            Category(editing.ifBlank { newId() }, scope, name.trim())
+                        )
                     }
                 }
             ) {

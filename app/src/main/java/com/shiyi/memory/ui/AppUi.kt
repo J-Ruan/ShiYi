@@ -3,10 +3,10 @@ package com.shiyi.memory.ui
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,45 +28,30 @@ import androidx.navigation.compose.*
 @Composable
 fun MemoryApp(vm: AppViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val startupError by vm.startupError.collectAsStateWithLifecycle()
+    val settingsError by vm.settingsError.collectAsStateWithLifecycle()
+    var resetConfirm by remember { mutableStateOf(false) }
     val ready by vm.settingsReady.collectAsStateWithLifecycle()
     val unlocked by vm.unlocked.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
-    val dark = settings.theme == "dark" || (settings.theme == "system" && isSystemInDarkTheme())
-    val colors =
-        if (dark)
-            darkColorScheme(
-                primary = Color(0xFFE8B5C6),
-                secondary = Color(0xFFC7BAE7),
-                background = Color(0xFF19181D),
-                surface = Color(0xFF252329),
-                surfaceVariant = Color(0xFF34313A),
-                onBackground = Color(0xFFF3EDF0),
-                onSurface = Color(0xFFF3EDF0),
-            )
-        else
-            lightColorScheme(
-                primary = Color(0xFF92506A),
-                primaryContainer = Color(0xFFF2DDE5),
-                secondary = Color(0xFF776394),
-                secondaryContainer = Color(0xFFECE5F7),
-                background = Color(0xFFFAF8F5),
-                surface = Color.White,
-                surfaceVariant = Color(0xFFEFEAE7),
-                onBackground = Color(0xFF34323A),
-                onSurface = Color(0xFF34323A),
-                onSurfaceVariant = Color(0xFF6C6873),
-                outline = Color(0xFF92909A),
-            )
-    MaterialTheme(
-        colorScheme = colors,
-        shapes = Shapes(medium = RoundedCornerShape(18.dp), large = RoundedCornerShape(24.dp)),
-    ) {
-        Surface(Modifier.fillMaxSize(), color = colors.background) {
+    ShiYiTheme(settings.theme) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             val snack = remember { SnackbarHostState() }
             LaunchedEffect(vm) { vm.messages.collect { snack.showSnackbar(it) } }
             Box(Modifier.fillMaxSize().safeDrawingPadding()) {
-                if (!ready) CircularProgressIndicator(Modifier.align(Alignment.Center))
+                if (startupError != null || settingsError) {
+                    Column(Modifier.align(Alignment.Center).padding(Space.page)) {
+                        Text(
+                            if (settingsError) "无法读取设置" else "无法读取回忆",
+                            style = MaterialTheme.typography.titleLarge,
+                        )
+                        Text(if (settingsError) "设置读取失败，回忆数据已保留。" else startupError!!)
+                        Button(onClick = vm::retryStartup) { Text("重试") }
+                        if (settingsError)
+                            TextButton(onClick = { resetConfirm = true }) { Text("恢复默认设置") }
+                    }
+                } else if (!ready) CircularProgressIndicator(Modifier.align(Alignment.Center))
                 else {
                     Box(
                         if (settings.pinHash.isNotEmpty() && !unlocked)
@@ -94,7 +79,10 @@ fun MemoryApp(vm: AppViewModel) {
                                     securePolicy = SecureFlagPolicy.SecureOn,
                                 ),
                         ) {
-                            Surface(Modifier.fillMaxSize(), color = colors.background) {
+                            Surface(
+                                Modifier.fillMaxSize(),
+                                color = MaterialTheme.colorScheme.background,
+                            ) {
                                 Box(Modifier.safeDrawingPadding()) { LockScreen(vm) }
                             }
                         }
@@ -119,6 +107,25 @@ fun MemoryApp(vm: AppViewModel) {
                         }
                     }
             }
+            if (resetConfirm)
+                AlertDialog(
+                    onDismissRequest = { resetConfirm = false },
+                    title = { Text("恢复默认设置？") },
+                    text = { Text("仅重置设置，包括应用锁和通知偏好。回忆数据库与图片保持原样。") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                resetConfirm = false
+                                vm.resetSettings()
+                            }
+                        ) {
+                            Text("恢复设置")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { resetConfirm = false }) { Text("取消") }
+                    },
+                )
             androidx.activity.compose.BackHandler(enabled = busy) {}
             if (error != null)
                 AlertDialog(
@@ -161,11 +168,6 @@ private fun LockScreen(vm: AppViewModel) {
         )
         Spacer(Modifier.height(20.dp))
         Text("拾忆", style = MaterialTheme.typography.displaySmall)
-        Text(
-            "只属于你的私人收藏",
-            Modifier.padding(12.dp),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         OutlinedTextField(
             pin,
             { pin = it.filter(Char::isDigit).take(12) },
@@ -240,6 +242,7 @@ private fun LockScreen(vm: AppViewModel) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AppNavigation(vm: AppViewModel, snack: SnackbarHostState) {
     val nav = rememberNavController()
@@ -256,6 +259,23 @@ private fun AppNavigation(vm: AppViewModel, snack: SnackbarHostState) {
             Icons.Outlined.Tune,
         )
     val go: (String) -> Unit = { nav.navigate(it) { launchSingleTop = true } }
+    val shared by vm.sharedDraft.collectAsStateWithLifecycle()
+    val loading by vm.loading.collectAsStateWithLifecycle()
+    LaunchedEffect(shared, loading) {
+        if (shared != null && !loading) {
+            go("edit/memory/new?type=share-$shared")
+            vm.sharedDraft.value = null
+        }
+    }
+    LaunchedEffect(vm) {
+        vm.undoDeletion.collect { id ->
+            if (
+                snack.showSnackbar("已移入回收站", "撤销", duration = SnackbarDuration.Short) ==
+                    SnackbarResult.ActionPerformed
+            )
+                vm.action("已恢复") { vm.repo.restoreMemory(id) }
+        }
+    }
     val back: () -> Unit = {
         nav.popBackStack()
         Unit
@@ -324,6 +344,8 @@ private fun AppNavigation(vm: AppViewModel, snack: SnackbarHostState) {
             composable("backup") { BackupScreen(vm, back) }
             composable("pdf") { PdfScreen(vm, back) }
             composable("settings") { SettingsScreen(vm, back) }
+            composable("trash") { TrashScreen(vm, back) }
+            composable("storage") { StorageScreen(vm, back) }
             composable("categories") { CategoriesScreen(vm, back) }
             composable("viewer/{memory}/{index}") {
                 ViewerScreen(
@@ -336,31 +358,27 @@ private fun AppNavigation(vm: AppViewModel, snack: SnackbarHostState) {
         }
     }
     if (add)
-        AlertDialog(
-            onDismissRequest = { add = false },
-            title = { Text("留下一点，关于我们") },
-            text = {
-                Column {
-                    listOf(
-                            "添加回忆" to "edit/memory/new",
-                            "收藏聊天" to "edit/memory/new?type=chat",
-                            "记录 TA 的细节" to "edit/entry/new",
-                            "添加心愿" to "edit/wish/new",
-                            "添加纪念日" to "edit/anniversary/new",
-                        )
-                        .forEach { (label, path) ->
-                            TextButton(
-                                onClick = {
-                                    add = false
-                                    go(path)
-                                },
-                                Modifier.fillMaxWidth(),
-                            ) {
-                                Text(label)
-                            }
+        ModalBottomSheet(onDismissRequest = { add = false }) {
+            Column(Modifier.padding(Space.page)) {
+                Section("添加")
+                listOf(
+                        "快速记录" to "edit/memory/new",
+                        "收藏聊天" to "edit/memory/new?type=chat",
+                        "档案细节" to "edit/entry/new",
+                        "心愿" to "edit/wish/new",
+                        "纪念日" to "edit/anniversary/new",
+                    )
+                    .forEach { (label, path) ->
+                        TextButton(
+                            onClick = {
+                                add = false
+                                go(path)
+                            },
+                            Modifier.fillMaxWidth(),
+                        ) {
+                            Text(label)
                         }
-                }
-            },
-            confirmButton = { TextButton(onClick = { add = false }) { Text("取消") } },
-        )
+                    }
+            }
+        }
 }

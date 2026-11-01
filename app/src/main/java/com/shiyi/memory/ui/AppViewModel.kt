@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.*
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     val app = application as MemoryApplication
-    val repo = app.repository
+    val repo by lazy { app.repository }
     val prefs = app.settings
     val data = MutableStateFlow(Snapshot())
     val settings = MutableStateFlow(Settings())
@@ -23,29 +23,150 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val unlocked = MutableStateFlow(false)
     val error = MutableStateFlow<String?>(null)
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 16)
-    val backup = BackupService(app, repo, prefs)
+    val backup by lazy { BackupService(app, repo, prefs) }
     val prepared = MutableStateFlow<PreparedBackup?>(null)
 
-    init {
+    val startupError = MutableStateFlow<String?>(null)
+    val settingsError = MutableStateFlow(false)
+    val sharedDraft = MutableStateFlow<String?>(null)
+    private var isInBackground = false
+
+    fun foreground() {
+        isInBackground = false
+    }
+
+    private var sharingUntil = 0L
+
+    fun beginSharing() {
+        sharingUntil = android.os.SystemClock.elapsedRealtime() + 600_000
         viewModelScope.launch {
-            repo.flow
-                .retryWhen { e, attempt ->
-                    error.value = "读取数据库失败：${e.localizedMessage}"
-                    delay((attempt + 1).coerceAtMost(10) * 1000)
-                    true
-                }
-                .collect {
-                    data.value = it
-                    loading.value = false
-                }
+            delay(600_000)
+            if (android.os.SystemClock.elapsedRealtime() >= sharingUntil)
+                java.io.File(app.cacheDir, "exports").deleteRecursively()
         }
-        viewModelScope.launch {
-            prefs.flow
-                .catch { error.value = "读取设置失败，请重新启动应用" }
-                .collect {
-                    settings.value = it
-                    settingsReady.value = true
+    }
+
+    private var externalUntil = 0L
+    private var externalWasUnlocked = false
+
+    fun beginExternal() {
+        externalWasUnlocked = unlocked.value
+        externalUntil = android.os.SystemClock.elapsedRealtime() + 60_000
+    }
+
+    fun endExternal() {
+        if (
+            android.os.SystemClock.elapsedRealtime() < externalUntil &&
+                externalWasUnlocked &&
+                !(app.getSystemService(android.app.KeyguardManager::class.java).isKeyguardLocked)
+        )
+            unlocked.value = true
+        externalUntil = 0
+        externalWasUnlocked = false
+    }
+
+    fun background() {
+        isInBackground = true
+        unlocked.value = false
+        if (externalUntil == 0L) lock()
+    }
+
+    val undoDeletion = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    private var recoveredDraft = false
+    private var databaseJob: Job? = null
+    private var settingsJob: Job? = null
+
+    init {
+        loadSettings()
+        loadDatabase()
+    }
+
+    private fun loadDatabase() {
+        databaseJob?.cancel()
+        databaseJob =
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    repo.flow.collect {
+                        com.shiyi.memory.domain.validateSnapshot(it)
+                        if (loading.value) LegacyMigration.finish(app)
+                        data.value = it
+                        loading.value = false
+                        startupError.value = null
+                        if (!recoveredDraft) {
+                            recoveredDraft = true
+                            sharedDraft.value = ShareImport(app, repo).pending()
+                            repo.emptyTrash(true)
+                        }
+                    }
+                } catch (e: Exception) {
+                    if (e is CancellationException) throw e
+                    startupError.value = "无法读取或迁移回忆。旧数据已保留，请检查存储空间后重试。"
                 }
+            }
+    }
+
+    private fun loadSettings() {
+        settingsJob?.cancel()
+        settingsJob =
+            viewModelScope.launch {
+                prefs.flow
+                    .catch {
+                        settingsError.value = true
+                        settingsReady.value = true
+                    }
+                    .collect {
+                        settings.value = it
+                        settingsReady.value = true
+                        settingsError.value = false
+                    }
+            }
+    }
+
+    fun retryStartup() {
+        startupError.value = null
+        loadSettings()
+        loadDatabase()
+    }
+
+    fun resetSettings() =
+        action("设置已恢复") {
+            prefs.resetDamagedSettings()
+            withContext(Dispatchers.Main) { loadSettings() }
+        }
+
+    fun lock() {
+        externalUntil = 0
+        externalWasUnlocked = false
+        unlocked.value = false
+        if (!busy.value) {
+            prepared.value?.folder?.deleteRecursively()
+            prepared.value = null
+            com.shiyi.memory.FileCleanup.clear(
+                app,
+                android.os.SystemClock.elapsedRealtime() >= sharingUntil,
+            )
+        }
+    }
+
+    fun deleteMemory(id: String, back: () -> Unit) =
+        action("", back) {
+            repo.delete("memory", id)
+            undoDeletion.emit(id)
+        }
+
+    fun acceptShare(intent: android.content.Intent) {
+        if (
+            intent.action !in
+                listOf(
+                    android.content.Intent.ACTION_SEND,
+                    android.content.Intent.ACTION_SEND_MULTIPLE,
+                )
+        )
+            return
+        val uris = com.shiyi.memory.platform.ShareImport.uris(intent)
+        action("分享图片已导入") {
+            val draft = com.shiyi.memory.platform.ShareImport(app, repo).prepare(uris)
+            sharedDraft.value = draft
         }
     }
 
@@ -63,6 +184,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 error.value = e.localizedMessage ?: "操作未完成，请重试"
             } finally {
                 busy.value = false
+                if (isInBackground && externalUntil == 0L) lock()
             }
         }
     }
@@ -71,7 +193,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         action(
             "已导入原图",
             block = {
-                val images = uris.map { repo.importImage(it) }
+                val images = mutableListOf<String>()
+                try {
+                    uris.distinct().forEach { images += repo.importImage(it) }
+                } catch (e: Exception) {
+                    images.forEach { repo.file(it).delete() }
+                    throw e
+                }
                 withContext(Dispatchers.Main) { done(images) }
             },
         )
