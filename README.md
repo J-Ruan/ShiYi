@@ -48,9 +48,13 @@
 
 ## 安装与升级
 
-正式版仅通过 [GitHub Release 附件](https://github.com/J-Ruan/ShiYi/releases) 分发，预期文件名 `ShiYi-1.1.0-release.apk`，并提供 `SHA256SUMS.txt`。**没有完成正式签名与发布时，该版本下载入口不会存在。**
+当前可直接下载：[1.1.0 可安装测试 APK（Debug 签名，38.89 MiB）](https://github.com/J-Ruan/ShiYi/raw/refs/heads/main/downloads/ShiYi-1.1.0-debug.apk?download=1) · [SHA-256 校验文件](downloads/SHA256SUMS)。
 
-此前 `downloads/` 中的 1.0.0 是 Debug 签名测试版，不能当作正式版。本次不再向 Git 仓库添加 APK。
+此测试包与旧 1.0.0 APK 的证书不同，不能直接覆盖安装。**先导出并验证加密备份，再卸载旧版、安装并恢复。**
+
+正式版通过 [GitHub Release 附件](https://github.com/J-Ruan/ShiYi/releases) 分发，预期文件名 `ShiYi-1.1.0-release.apk`，并提供 `SHA256SUMS.txt`。当前正式签名尚未配置，不将测试包标记为正式稳定版。
+
+`downloads/` 中提供 Debug 测试包。因 Release 附件上传认证失败，本次按下载需求通过仓库文件提供 1.1.0 测试 APK；正式 APK 继续使用 Release 附件分发。
 
 从 Debug 转正式版：
 

@@ -52,5 +52,15 @@
     "publish": "blocked",
     "reason": "Missing required signing configuration: KEYSTORE_BASE64"
   },
-  "gitTag": null
+  "gitTag": null,
+  "debugDistribution": {
+    "path": "downloads/ShiYi-1.1.0-debug.apk",
+    "url": "https://github.com/J-Ruan/ShiYi/raw/refs/heads/main/downloads/ShiYi-1.1.0-debug.apk?download=1",
+    "sha256": "0193d3bc695ac3f731f6da28e6d48e44f90d9dafcf6b60c6b0432281e8d8e310",
+    "bytes": 40775574,
+    "signature": "debug",
+    "sameCertificateAs100": false,
+    "channel": "repository-file",
+    "releaseAssetUpload": "HTTP 401 Bad credentials"
+  }
 }

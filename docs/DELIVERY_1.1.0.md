@@ -54,3 +54,8 @@ Debug SHA-256：`0193d3bc695ac3f731f6da28e6d48e44f90d9dafcf6b60c6b0432281e8d8e31
 荣耀实机、生物识别硬件、Android 8 / Android 13+ 授权流程、超大媒体和低空间压力尚未人工验证。本轮没有 AAB。软件模拟器曾遇到系统服务未就绪，最后成功安装及完成真实迁移测试；完整套件以成功 CI 为准。
 
 仓库 Topics 的写入被 Metadata API 以 403 拒绝，未擅自变更权限。所有者可在仓库 About 齿轮补充 android、kotlin、jetpack-compose、offline、privacy、memory、journal；它不影响应用构建或正式签名。
+
+
+## 后续测试 APK 下载交付
+
+按用户后续下载请求，已将 `ShiYi-1.1.0-debug.apk` 放入仓库 downloads 目录，并更新校验文件及 README。Release 附件上传返回 HTTP 401，故采用 Git 文件分发。公开下载的是 Debug 测试包，正式发行状态仍受长期签名配置阻塞；未把 Debug 标记为正式版。新测试包与旧 1.0.0 证书不同，须先备份再处理安装冲突。
