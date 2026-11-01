@@ -13,3 +13,5 @@
 | Robolectric | MIT | 仅测试 |
 
 Android SDK、设备系统 API 和开发 JDK 不打包进本应用，遵循各自的开发工具许可证。完整依赖树可在工程根目录用 `./gradlew :app:dependencies` 查看；版本以 Gradle 配置及 Compose BOM 为准。
+
+SQLCipher 的完整 BSD-3-Clause 条款保存在 [许可证原文](licenses/SQLCipher-LICENSE.txt)，并随 APK assets/third_party 分发；Apache-2.0 原文及组件归属说明同样打包。项目原有 MIT 许可证保持不变。

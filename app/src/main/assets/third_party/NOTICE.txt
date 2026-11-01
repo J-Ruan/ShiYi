@@ -1,0 +1,6 @@
+ShiYi is licensed under MIT (see https://github.com/J-Ruan/ShiYi/blob/main/LICENSE).
+SQLCipher Android 4.10.0 / SQLCipher: Copyright (c) 2008-2023 ZETETIC LLC, BSD-3-Clause; full license in SQLCipher-LICENSE.txt.
+OpenSSL (bundled by SQLCipher): Apache License 2.0; https://www.openssl.org/source/license.html
+SQLite is in the public domain: https://sqlite.org/copyright.html
+Kotlin, kotlinx.coroutines, kotlinx.serialization, AndroidX, Jetpack Compose, Material 3 and Coil: Apache License 2.0. Their copyright and license remain with their authors.
+These components are not relicensed by ShiYi's MIT license.

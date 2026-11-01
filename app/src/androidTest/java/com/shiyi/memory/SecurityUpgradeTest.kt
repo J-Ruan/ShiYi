@@ -82,7 +82,7 @@ class SecurityUpgradeTest {
                     db.execSQL(
                         e["createSql"]!!.jsonPrimitive.content.replace("\${TABLE_NAME}", name)
                     )
-                    e["indices"]!!.jsonArray.forEach {
+                    e["indices"]?.jsonArray.orEmpty().forEach {
                         db.execSQL(
                             it.jsonObject["createSql"]!!
                                 .jsonPrimitive

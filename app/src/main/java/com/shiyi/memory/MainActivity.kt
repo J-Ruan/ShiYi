@@ -36,7 +36,6 @@ class MainActivity : FragmentActivity() {
 
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
         model.acceptShare(intent)
     }
 
